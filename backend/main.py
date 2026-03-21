@@ -211,7 +211,9 @@ async def google_callback(code: str, db: Client = Depends(get_db)):
     await auth_service.save_token(code)
     # Redirect back to frontend
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="http://localhost:5173/settings?auth=success")
+    import os
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    return RedirectResponse(url=f"{frontend_url}/settings?auth=success")
 
 if __name__ == "__main__":
     import uvicorn
