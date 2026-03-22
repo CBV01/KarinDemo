@@ -1,7 +1,8 @@
 import json
 import logging
 from datetime import datetime
-from libsql_client import Client
+from libsql_client import Client # type: ignore
+from grok_service import GrokService # type: ignore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -10,6 +11,7 @@ logger = logging.getLogger("Assistant")
 class AIAssistant:
     def __init__(self, db: Client):
         self.db = db
+        self.grok = GrokService(db)
 
     async def send_daily_briefing(self, agent_id: str = "karen"):
         """
@@ -102,8 +104,10 @@ class AIAssistant:
             msg = "🔥 Recent leads:\n" + "\n".join([f"- {l['name']} ({l['source']})" for l in recent])
             return msg
 
-        # Default help message
-        return "👋 Hi Karin! I'm your AI Assistant. You can:\n- Say 'Yes' to send anniversaries\n- 'Add lead: Name, Phone, Intent'\n- 'Anniversaries' for a briefing\n- 'Update' for latest leads"
+        # 5. Grok Fallback (Thinking mode)
+        else:
+            print(f"Grok pondering: {content}")
+            return await self.grok.get_response(agent_id, content)
 
     async def log_interaction(self, agent_id: str, channel: str, direction: str, content: str):
         sql = "INSERT INTO interaction_logs (id, agent_id, channel, direction, content) VALUES (?, ?, ?, ?, ?)"

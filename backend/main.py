@@ -176,22 +176,45 @@ async def morning_briefing(db: Client = Depends(get_db)):
     msg = await assistant.send_daily_briefing()
     return {"message": "Morning briefing sent", "content": msg}
 
-@app.post("/webhook/agent")
-async def agent_webhook(data: dict, db: Client = Depends(get_db)):
+@app.post("/webhook/telegram")
+async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
     """
-    Real-world webhook intended for Twilio (WhatsApp) or Telegram Bot API.
-    Expected data: {"from": "+123456789", "content": "text message"}
+    Official Telegram Bot API Webhook.
     """
-    # Verify the agent (simplified)
-    # In production, check sender's phone number against a user profile
-    content = data.get("content", "")
-    agent_id = data.get("agent_id", "karen")
+    print(f"Incoming Telegram Data: {data}")
+    
+    if "message" not in data:
+        return {"status": "ignored"}
+        
+    message = data["message"]
+    chat_id = str(message["chat"]["id"])
+    text = message.get("text", "")
     
     assistant = AIAssistant(db)
-    response = await assistant.handle_agent_reply(agent_id, content)
+    reply = await assistant.handle_agent_reply(chat_id, text)
     
-    # Return response as JSON (In a real Twilio webhook, you'd return TwiML XML)
-    return {"message": response}
+    # Send reply back to Telegram
+    import httpx # type: ignore
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": reply}
+        )
+        
+    return {"status": "ok"}
+
+@app.get("/webhook/set-telegram")
+async def set_telegram_webhook():
+    import httpx # type: ignore
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    space_name = os.getenv("HF_SPACE_NAME", "karin")
+    username = os.getenv("HF_USERNAME", "arkilostudio")
+    webhook_url = f"https://{username}-{space_name}.hf.space/webhook/telegram"
+    
+    async with httpx.AsyncClient() as client:
+        res = await client.get(f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}")
+        return res.json()
 
 from google_auth import GoogleAuthService # type: ignore
 
