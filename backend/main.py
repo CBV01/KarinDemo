@@ -181,6 +181,7 @@ async def refine_text(data: dict, db: Client = Depends(get_db)):
         return {"status": "error", "message": str(e)}
 
 from assistant import AIAssistant # type: ignore
+@app.post("/webhook/telegram")
 async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
     """ Official Telegram Bot API Webhook. """
     try:
