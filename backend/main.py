@@ -232,11 +232,19 @@ async def set_telegram_webhook(request: Request):
         
         async with httpx.AsyncClient() as client:
             tg_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
-            res = await client.get(tg_url)
-            return {
-                "telegram_response": res.json(),
-                "attempted_url": webhook_url
-            }
+            try:
+                # Use standard urllib as a more primitive fallback if httpx fails DNS
+                import urllib.request, json # type: ignore
+                with urllib.request.urlopen(tg_url) as response:
+                    res_data = json.load(response)
+                    return {
+                        "telegram_response": res_data,
+                        "method": "urllib_fallback",
+                        "attempted_url": webhook_url
+                    }
+            except Exception as e2:
+                # If both fail, report the secondary error
+                return {"status": "error", "message": f"Both HTTPX and URLLIB failed. DNS Error: {str(e2)}"}
     except Exception as e:
         return {"status": "error", "message": f"Webhook registration failed: {str(e)}"}
 
