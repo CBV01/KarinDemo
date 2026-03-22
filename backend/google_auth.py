@@ -53,7 +53,12 @@ class GoogleAuthService:
         flow.redirect_uri = self.redirect_uri
         # Ensure PKCE is disabled during token exchange too
         flow.code_verifier = None
-        flow.fetch_token(code=code)
+        try:
+            flow.fetch_token(code=code)
+        except Exception as e:
+            print(f"Token Exchange Error: {e}")
+            raise Exception(f"Failed to trade authorization code for tokens. The code might be expired or already used. Original error: {str(e)}")
+            
         creds = flow.credentials
 
         # Save to DB

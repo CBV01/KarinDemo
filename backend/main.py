@@ -12,7 +12,7 @@ load_dotenv()
 DB_URL = os.getenv("TURSO_DB_URL")
 DB_TOKEN = os.getenv("TURSO_DB_TOKEN")
 
-print("🚀 FastAPI Server starting with PKCE-fix v2")
+print("[STARTUP] FastAPI Server starting with PKCE-fix v2")
 
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
 
@@ -178,43 +178,59 @@ async def morning_briefing(db: Client = Depends(get_db)):
 
 @app.post("/webhook/telegram")
 async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
-    """
-    Official Telegram Bot API Webhook.
-    """
-    print(f"Incoming Telegram Data: {data}")
-    
-    if "message" not in data:
-        return {"status": "ignored"}
+    """ Official Telegram Bot API Webhook. """
+    try:
+        print(f"Incoming Telegram Data: {data}")
+        if "message" not in data:
+            return {"status": "ignored"}
         
-    message = data["message"]
-    chat_id = str(message["chat"]["id"])
-    text = message.get("text", "")
-    
-    assistant = AIAssistant(db)
-    reply = await assistant.handle_agent_reply(chat_id, text)
-    
-    # Send reply back to Telegram
-    import httpx # type: ignore
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": reply}
-        )
+        message = data["message"]
+        chat_id = str(message["chat"]["id"])
+        text = message.get("text", "")
         
-    return {"status": "ok"}
+        assistant = AIAssistant(db)
+        reply = await assistant.handle_agent_reply(chat_id, text)
+        
+        # Send reply back to Telegram
+        import httpx # type: ignore
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not token:
+            print("ERROR: TELEGRAM_BOT_TOKEN not set!")
+            return {"status": "error", "message": "Token missing"}
+            
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": reply}
+            )
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"Telegram Webhook Error: {e}")
+        return {"status": "internal_error", "message": str(e)}
 
 @app.get("/webhook/set-telegram")
 async def set_telegram_webhook():
     import httpx # type: ignore
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    space_name = os.getenv("HF_SPACE_NAME", "karin")
-    username = os.getenv("HF_USERNAME", "arkilostudio")
-    webhook_url = f"https://{username}-{space_name}.hf.space/webhook/telegram"
-    
-    async with httpx.AsyncClient() as client:
-        res = await client.get(f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}")
-        return res.json()
+    try:
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not token:
+            return {"status": "error", "message": "TELEGRAM_BOT_TOKEN is missing in HF Secrets!"}
+            
+        username = os.getenv("HF_USERNAME", "arkilostudio").lower()
+        space_name = os.getenv("HF_SPACE_NAME", "karin").lower()
+        # On HF, subdomains use a dash between username and space name
+        full_subdomain = f"{username}-{space_name}"
+        webhook_url = f"https://{full_subdomain}.hf.space/webhook/telegram"
+        
+        async with httpx.AsyncClient() as client:
+            tg_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
+            res = await client.get(tg_url)
+            return {
+                "telegram_response": res.json(),
+                "attempted_url": webhook_url
+            }
+    except Exception as e:
+        return {"status": "error", "message": f"Webhook registration failed: {str(e)}"}
 
 from google_auth import GoogleAuthService # type: ignore
 
