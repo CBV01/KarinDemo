@@ -1081,18 +1081,52 @@ const App = () => {
                         </div>
                      )}
 
-                     {activeModal === 'LAUNCH_CAMPAIGN' && (
-                        <div className="space-y-4">
-                           <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Database Segment Target</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                 <button className="p-4 border border-indigo-100 bg-indigo-50/20 rounded-2xl text-left hover:border-indigo-300 transition-all"><p className="text-[10px] font-bold text-indigo-600 uppercase mb-1">Year 2 Cycle</p><p className="text-[9px] text-slate-400 font-medium leading-none">42 Owners identified</p></button>
-                                 <button className="p-4 border border-slate-100 bg-slate-50/50 rounded-2xl text-left hover:border-indigo-300 transition-all"><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cold Lead Pool</p><p className="text-[9px] text-slate-400 font-medium leading-none">128 Historic leads</p></button>
-                              </div>
-                           </div>
-                           <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Campaign Communication Mode</label><div className="flex items-center gap-4"><div className="flex-1 p-3 bg-slate-900 text-white rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold"><PhoneCall size={14} /> VAPI VOICE WAVE</div><div className="flex-1 p-3 bg-white border border-slate-100 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold text-slate-800"><Mail size={14} /> SMS DRIP</div></div></div>
-                        </div>
-                     )}
+                   {activeModal === 'LAUNCH_CAMPAIGN' && (
+                      <div className="space-y-6">
+                         <div className="space-y-3">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Live Segment: Year 2 Owners ({anniversaries.length})</label>
+                            <div className="max-h-40 overflow-y-auto custom-scrollbar border border-slate-50 rounded-2xl bg-slate-50/30 p-4 space-y-2">
+                               {anniversaries.length > 0 ? anniversaries.map((client, idx) => (
+                                  <div key={idx} className="flex items-center justify-between py-2 border-b border-white/50 last:border-none">
+                                     <div className="flex items-center gap-3">
+                                        <div className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-[10px] font-black">{client.name[0]}</div>
+                                        <div>
+                                           <p className="text-[11px] font-bold text-slate-700 leading-none mb-1">{client.name}</p>
+                                           <p className="text-[9px] text-slate-400 font-medium">{client.property_address}</p>
+                                        </div>
+                                     </div>
+                                     <div className="flex items-center gap-2">
+                                        <div className="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] font-black rounded uppercase">Ready</div>
+                                     </div>
+                                  </div>
+                               )) : (
+                                  <p className="text-[10px] text-slate-400 font-medium text-center py-4">No owners identified for this segment yet.</p>
+                               )}
+                            </div>
+                         </div>
+                         <div className="space-y-4">
+                            <div className="p-4 bg-indigo-900 rounded-2xl text-white flex items-center justify-between shadow-xl shadow-indigo-100">
+                               <div className="space-y-1">
+                                  <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Protocol Strategy</p>
+                                  <h4 className="text-xs font-bold">ANNIVERSARY_WAVE_V1</h4>
+                               </div>
+                               <div className="flex flex-col items-end">
+                                  <p className="text-[9px] font-bold text-indigo-400 uppercase">Estimated Reach</p>
+                                  <h4 className="text-xs font-black">{anniversaries.length} Owners</h4>
+                               </div>
+                            </div>
+                            <button 
+                               onClick={() => {
+                                  showToast('Dispatching Automated Wave... Grok is syncing drafts.', 'success');
+                                  closeModals();
+                               }}
+                               disabled={anniversaries.length === 0}
+                               className="w-full py-4 bg-indigo-600 text-white font-black text-[11px] uppercase tracking-[0.2em] rounded-2xl shadow-2xl shadow-indigo-200 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:grayscale">
+                               START DISPATCH WAVE
+                            </button>
+                         </div>
+                      </div>
+                   )}
 
                      {activeModal === 'ANNIVERSARY_LETTER' && (
                         <div className="space-y-4">

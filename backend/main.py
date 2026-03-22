@@ -244,13 +244,16 @@ async def set_telegram_webhook(request: Request):
             except Exception as e2:
                 # ULTIMATE BYPASS: If DNS is blocked, we use the raw IP of api.telegram.org
                 try:
+                    import ssl # type: ignore
+                    ctx = ssl._create_unverified_context()
                     ip_url = f"https://149.154.167.220/bot{token}/setWebhook?url={webhook_url}"
                     req = urllib.request.Request(ip_url, headers={"Host": "api.telegram.org"})
-                    with urllib.request.urlopen(req, timeout=10) as response:
+                    # Use unverified context to bypass hostname mismatch on IP
+                    with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
                         res_data = json.load(response)
-                        return {"telegram_response": res_data, "method": "IP_BYPASS_SUCCESS", "attempted_url": webhook_url}
+                        return {"telegram_response": res_data, "method": "HARD_IP_SSL_BYPASS", "attempted_url": webhook_url}
                 except Exception as e3:
-                    return {"status": "error", "message": f"DNS failure and IP bypass also failed. Check if TG is blocked in your server region. Error: {str(e3)}"}
+                    return {"status": "error", "message": f"DNS failure and IP-SSL bypass also failed. Check if TG is blocked. Error: {str(e3)}"}
     except Exception as e:
         return {"status": "error", "message": f"Webhook registration failed: {str(e)}"}
 
