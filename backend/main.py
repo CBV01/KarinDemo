@@ -247,14 +247,46 @@ async def google_status(db: Client = Depends(get_db)):
     return {"connected": creds is not None}
 
 @app.get("/auth/callback")
-async def google_callback(code: str, db: Client = Depends(get_db)):
-    auth_service = GoogleAuthService(db)
-    await auth_service.save_token(code)
-    # Redirect back to frontend
-    from fastapi.responses import RedirectResponse # type: ignore
-    import os
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    return RedirectResponse(url=f"{frontend_url}/settings?auth=success")
+async def google_callback(code: str = None, error: str = None, db: Client = Depends(get_db)):
+    """ Final Step of the Google Handshake. """
+    if error:
+        return {"status": "error", "message": f"Google returned error: {error}"}
+    if not code:
+        return {"status": "error", "message": "No code received from Google"}
+        
+    try:
+        auth_service = GoogleAuthService(db)
+        status = await auth_service.save_token(code)
+        
+        from fastapi.responses import RedirectResponse # type: ignore
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        return RedirectResponse(url=f"{frontend_url}/settings?auth=success")
+    except Exception as e:
+        print(f"CRITICAL: Google Callback failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Handshake failed! Error: {str(e)}",
+            "tip": "This often happens if the 'Redirect URI' in Google Console doesn't match EXACTLY what is in your HF Secrets."
+        }
+
+@app.get("/debug/health")
+async def debug_health():
+    """ Checks if all required keys are present. """
+    keys = [
+        "TELEGRAM_BOT_TOKEN", "XAI_API_KEY", "TURSO_DB_URL", "TURSO_DB_TOKEN",
+        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI",
+        "HF_USERNAME", "HF_SPACE_NAME"
+    ]
+    status = {}
+    for k in keys:
+        val = os.getenv(k)
+        status[k] = "Present" if val and len(val) > 4 else "MISSING!"
+    
+    return {
+        "system_status": "online",
+        "environment_check": status,
+        "tip": "If anything says MISSING, your AI will not work. Add it to Hugging Face Settings -> Secrets."
+    }
 
 if __name__ == "__main__":
     import uvicorn # type: ignore
