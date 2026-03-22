@@ -51,6 +51,8 @@ class GoogleAuthService:
             scopes=self.scopes
         )
         flow.redirect_uri = self.redirect_uri
+        # Ensure PKCE is disabled during token exchange too
+        flow.code_verifier = None
         flow.fetch_token(code=code)
         creds = flow.credentials
 
