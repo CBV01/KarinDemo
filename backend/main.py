@@ -194,24 +194,33 @@ async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
         text = message.get("text", "")
         
         assistant = AIAssistant(db)
-        reply = await assistant.handle_agent_reply(chat_id, text)
+        reply = await assistant.handle_agent_reply(chat_id, text, channel="telegram")
         
-        # Send reply back to Telegram
-        import httpx # type: ignore
-        token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if not token:
-            print("ERROR: TELEGRAM_BOT_TOKEN not set!")
-            return {"status": "error", "message": "Token missing"}
-            
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": chat_id, "text": reply}
-            )
+        # Send reply back to Telegram via assistant's robust method
+        await assistant.send_telegram_message(chat_id, reply)
+
         return {"status": "ok"}
     except Exception as e:
         print(f"Telegram Webhook Error: {e}")
         return {"status": "internal_error", "message": str(e)}
+
+class RewriteRequest(BaseModel):
+    content: str
+    tone: Optional[str] = "professional"
+
+@app.post("/assistant/rewrite")
+async def assistant_rewrite(req: RewriteRequest, db: Client = Depends(get_db)):
+    assistant = AIAssistant(db)
+    new_text = await assistant.rewrite_content(req.content, req.tone)
+    return {"content": new_text}
+
+@app.get("/assistant/morning-briefing")
+async def get_morning_briefing(db: Client = Depends(get_db)):
+    assistant = AIAssistant(db)
+    # Use a default agent_id or fetch from env
+    agent_id = os.getenv("TELEGRAM_CHAT_ID", "karen")
+    content = await assistant.send_daily_briefing(agent_id)
+    return {"content": content}
 
 from fastapi import FastAPI, HTTPException, Depends, Request # type: ignore
 

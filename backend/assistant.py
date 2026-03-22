@@ -50,13 +50,53 @@ class AIAssistant:
                 msg += f"- {l['name']}\n"
         
         # Log the outbound interaction
-        await self.log_interaction(agent_id, "whatsapp", "outbound", msg)
+        await self.log_interaction(agent_id, "telegram", "outbound", msg)
         
-        # In a real app, we'd call the Twilio/WhatsApp API here
-        logger.info(f"Notification sent to Agent {agent_id} via WhatsApp:\n{msg}")
+        # Send to Telegram if agent_id looks like a chat_id
+        if agent_id.isdigit():
+            await self.send_telegram_message(agent_id, msg)
+        
+        logger.info(f"Notification sent to Agent {agent_id} via Telegram:\n{msg}")
         return msg
 
-    async def handle_agent_reply(self, agent_id: str, content: str):
+    async def send_telegram_message(self, chat_id: str, text: str):
+        import os
+        import json
+        import urllib.request
+        import ssl
+        
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not token:
+            logger.error("TELEGRAM_BOT_TOKEN not set")
+            return
+            
+        payload = json.dumps({"chat_id": chat_id, "text": text}).encode('utf-8')
+        
+        # 1. Try standard DNS-based request first
+        tg_url = f"https://api.telegram.org/bot{token}/sendMessage"
+        try:
+            req = urllib.request.Request(tg_url, data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                logger.info("Telegram reply via DNS successful")
+                return
+        except Exception as e:
+            logger.warning(f"Telegram DNS send failed: {e}. Trying IP bypass...")
+
+        # 2. Try HARD_IP_SSL_BYPASS if DNS fails
+        try:
+            ip_url = f"https://149.154.167.220/bot{token}/sendMessage"
+            ctx = ssl._create_unverified_context()
+            req = urllib.request.Request(
+                ip_url, 
+                data=payload, 
+                headers={"Host": "api.telegram.org", "Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
+                logger.info("Telegram reply via HARD_IP_SSL_BYPASS successful")
+        except Exception as e_ip:
+            logger.error(f"Telegram HARD_IP_SSL_BYPASS also failed: {e_ip}")
+
+    async def handle_agent_reply(self, agent_id: str, content: str, channel: str = "telegram"):
         """
         Handles incoming WhatsApp/Telegram message from the agent (Karin).
         Parses commands and returns a natural language response.
@@ -64,7 +104,7 @@ class AIAssistant:
         content_lower = content.strip().lower()
         
         # Log the inbound interaction
-        await self.log_interaction(agent_id, "phone", "inbound", content)
+        await self.log_interaction(agent_id, channel, "inbound", content)
 
         # 1. Handle "Add Lead" command
         if content_lower.startswith("add lead:"):
@@ -108,6 +148,13 @@ class AIAssistant:
         else:
             print(f"Grok pondering: {content}")
             return await self.grok.get_response(agent_id, content)
+
+    async def rewrite_content(self, content: str, tone: str = "professional"):
+        """
+        Uses Grok to rewrite content in a specific tone.
+        """
+        prompt = f"Rewrite the following message to be more {tone}, keeping the [Tags] like [Name], [Address], etc. intact:\n\n{content}"
+        return await self.grok.get_response("system", prompt)
 
     async def log_interaction(self, agent_id: str, channel: str, direction: str, content: str):
         sql = "INSERT INTO interaction_logs (id, agent_id, channel, direction, content) VALUES (?, ?, ?, ?, ?)"

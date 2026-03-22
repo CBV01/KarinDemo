@@ -11,6 +11,7 @@ export const getProperties = () => api.get('/properties');
 export const checkAnniversaries = () => api.get('/check-anniversaries');
 export const getMorningBriefing = () => api.get('/assistant/morning-briefing');
 export const sendAgentReply = (content: string) => api.post('/assistant/reply', { agent_id: 'karen', content });
+export const rewriteContent = (content: string, tone: string = 'professional') => api.post('/assistant/rewrite', { content, tone });
 
 // New Functionalities
 export const createLead = (data: any) => api.post('/leads', data);

@@ -68,6 +68,23 @@ const App = () => {
    const [activeModal, setActiveModal] = useState<string | null>(null);
    const [modalTab, setModalTab] = useState<'MANUAL' | 'IMPORT'>('MANUAL');
    const [formData, setFormData] = useState<any>({});
+   const [emailTemplate, setEmailTemplate] = useState("Hi [Name],\n\nKarin was just reviewing your 2-year settlement anniversary at [Address]. Rodney market data shows a strong upward drift since [Date].\n\nWould you be open to seeing the fresh valuation report my AI engine just drafted for you?");
+   const [smsTemplate, setSmsTemplate] = useState("Hi [Name], check your email for the [Address] market update I just sent! Let Karin know if you want the full physical appraisal? - Karin's AI Assistant");
+
+   const handleRewrite = async (type: 'email' | 'sms') => {
+      const content = type === 'email' ? emailTemplate : smsTemplate;
+      const originalText = type === 'email' ? 'Regenerating Email...' : 'Refining SMS...';
+      showToast(originalText, 'info');
+      
+      try {
+         const res = await api.post('/assistant/rewrite', { content, tone: 'professional' });
+         if (type === 'email') setEmailTemplate(res.data.content);
+         else setSmsTemplate(res.data.content);
+         showToast('AI optimization complete.', 'success');
+      } catch (err) {
+         showToast('AI rewrite failed. Check connection.', 'info');
+      }
+   };
 
    const showToast = (message: string, type: 'success' | 'info' = 'success') => {
       setToast({ message, type });
@@ -77,10 +94,10 @@ const App = () => {
    const closeModals = () => setActiveModal(null);
 
    const stats = [
-      { label: 'Active Inbound', val: '12', inc: '+2', icon: PhoneCall, theme: 'indigo' },
+      { label: 'Active Pipeline', val: leads.length, inc: '+2', icon: PhoneCall, theme: 'indigo' },
       { label: 'Outbound Wave', val: '48', inc: 'Vapi Active', icon: Target, theme: 'emerald' },
       { label: 'Anniversaries', val: anniversaries.length, inc: 'Detection', icon: Building, theme: 'amber' },
-      { label: 'Conversion Avg', val: '92%', inc: '+4%', icon: Activity, theme: 'rose' },
+      { label: 'Client Base', val: clients.length, inc: '+4%', icon: Activity, theme: 'rose' },
    ];
 
    const fetchData = async () => {
@@ -724,11 +741,12 @@ const App = () => {
                         <textarea 
                            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-medium leading-relaxed text-slate-700 h-32 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
                            placeholder="Write your email here..."
-                           defaultValue={"Hi [Name],\n\nKarin was just reviewing your 2-year settlement anniversary at [Address]. Rodney market data shows a strong upward drift since [Date].\n\nWould you be open to seeing the fresh valuation report my AI engine just drafted for you?"}
+                           value={emailTemplate}
+                           onChange={(e) => setEmailTemplate(e.target.value)}
                         />
                         <div className="flex gap-2">
-                           <button onClick={() => showToast('AI Ghostwriter refined your tone.', 'success')} className="flex-1 py-2.5 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all">Regenerate with AI</button>
-                           <button className="flex-1 py-2.5 bg-white border border-slate-100 text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded-xl hover:text-indigo-600 hover:border-indigo-100 transition-all">Reset to Default</button>
+                           <button onClick={() => handleRewrite('email')} className="flex-1 py-2.5 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all">Regenerate with AI</button>
+                           <button onClick={() => setEmailTemplate("Hi [Name],\n\nKarin was just reviewing your 2-year settlement anniversary at [Address]. Rodney market data shows a strong upward drift since [Date].\n\nWould you be open to seeing the fresh valuation report my AI engine just drafted for you?")} className="flex-1 py-2.5 bg-white border border-slate-100 text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded-xl hover:text-indigo-600 hover:border-indigo-100 transition-all">Reset to Default</button>
                         </div>
                      </div>
                   </div>
@@ -755,9 +773,10 @@ const App = () => {
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">SMS Template (Editable)</label>
                         <textarea 
                            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-medium leading-relaxed text-slate-700 h-24 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                           defaultValue={"Hi [Name], check your email for the [Address] market update I just sent! Let Karin know if you want the full physical appraisal? - Karin's AI Assistant"}
+                           value={smsTemplate}
+                           onChange={(e) => setSmsTemplate(e.target.value)}
                         />
-                        <button onClick={() => showToast('AI SMS optimization complete.', 'success')} className="w-full py-2.5 bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-900 transition-all">Refine Tone with AI</button>
+                        <button onClick={() => handleRewrite('sms')} className="w-full py-2.5 bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-900 transition-all">Refine Tone with AI</button>
                      </div>
                   </div>
                </div>
