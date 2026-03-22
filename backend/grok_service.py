@@ -1,5 +1,5 @@
 import os
-import httpx
+import httpx # type: ignore
 from typing import List, Dict
 
 class GrokService:
@@ -48,6 +48,9 @@ class GrokService:
             except Exception as e:
                 print(f"Grok API Error: {e}")
                 return "I'm having trouble connecting to my brain (Grok) right now. Please try again later!"
+        
+        # Final fallback in case logic ever skips previous returns
+        return "I'm thinking... but nothing came out. Try asking me again!"
 
     async def save_message(self, user_id: str, role: str, content: str):
         from uuid import uuid4

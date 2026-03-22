@@ -1,7 +1,7 @@
 import os
 import asyncio
-from libsql_client import create_client
-from dotenv import load_dotenv
+from libsql_client import create_client # type: ignore
+from dotenv import load_dotenv # type: ignore
 
 async def migrate():
     load_dotenv()
