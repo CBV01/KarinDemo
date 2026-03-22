@@ -168,15 +168,19 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
+@app.post("/ai/refine-text")
+async def refine_text(data: dict, db: Client = Depends(get_db)):
+    """ Refine SMS/Email drafts using Grok AI. """
+    try:
+        from grok_service import GrokService # type: ignore
+        grok = GrokService(db)
+        prompt = f"Please refine the following real estate SMS/Email draft to sound more professional and engaging: {data.get('text')}"
+        refined = await grok.get_response("system", prompt)
+        return {"refined_text": refined}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 from assistant import AIAssistant # type: ignore
-
-@app.get("/assistant/morning-briefing")
-async def morning_briefing(db: Client = Depends(get_db)):
-    assistant = AIAssistant(db)
-    msg = await assistant.send_daily_briefing()
-    return {"message": "Morning briefing sent", "content": msg}
-
-@app.post("/webhook/telegram")
 async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
     """ Official Telegram Bot API Webhook. """
     try:
@@ -233,18 +237,20 @@ async def set_telegram_webhook(request: Request):
         async with httpx.AsyncClient() as client:
             tg_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
             try:
-                # Use standard urllib as a more primitive fallback if httpx fails DNS
                 import urllib.request, json # type: ignore
-                with urllib.request.urlopen(tg_url) as response:
+                with urllib.request.urlopen(tg_url, timeout=10) as response:
                     res_data = json.load(response)
-                    return {
-                        "telegram_response": res_data,
-                        "method": "urllib_fallback",
-                        "attempted_url": webhook_url
-                    }
+                    return {"telegram_response": res_data, "method": "urllib_success", "attempted_url": webhook_url}
             except Exception as e2:
-                # If both fail, report the secondary error
-                return {"status": "error", "message": f"Both HTTPX and URLLIB failed. DNS Error: {str(e2)}"}
+                # ULTIMATE BYPASS: If DNS is blocked, we use the raw IP of api.telegram.org
+                try:
+                    ip_url = f"https://149.154.167.220/bot{token}/setWebhook?url={webhook_url}"
+                    req = urllib.request.Request(ip_url, headers={"Host": "api.telegram.org"})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        res_data = json.load(response)
+                        return {"telegram_response": res_data, "method": "IP_BYPASS_SUCCESS", "attempted_url": webhook_url}
+                except Exception as e3:
+                    return {"status": "error", "message": f"DNS failure and IP bypass also failed. Check if TG is blocked in your server region. Error: {str(e3)}"}
     except Exception as e:
         return {"status": "error", "message": f"Webhook registration failed: {str(e)}"}
 
