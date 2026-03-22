@@ -32,6 +32,8 @@ class GoogleAuthService:
             scopes=self.scopes
         )
         flow.redirect_uri = self.redirect_uri
+        # Disable PKCE by clearing the verifier locally
+        flow.code_verifier = None
         auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
         return auth_url
 
