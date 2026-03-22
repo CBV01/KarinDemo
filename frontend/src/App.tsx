@@ -973,9 +973,10 @@ const App = () => {
 
                <div className="flex items-center gap-6">
                   <button
-                     onClick={() => showToast('Google Calendar Sync Active [Karin@cooperandco.co.nz]', 'info')}
-                     className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100 text-[10px] font-bold uppercase tracking-widest">
-                     <Link size={12} /> Syncing Calendar
+                     onClick={() => showToast(googleConnected ? 'Google Calendar Sync Active [Karin@cooperandco.co.nz]' : 'Please link your Google account in Settings.', 'info')}
+                     className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all ${googleConnected ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+                     {googleConnected ? <CheckCircle2 size={12} /> : <Link size={12} />} 
+                     {googleConnected ? 'Calendar Active' : 'Link Calendar'}
                   </button>
                   <div className="relative hidden md:block group">
                      <input type="text" placeholder="Omni searching..." className="bg-slate-50 border-none rounded-lg py-1.5 pl-10 pr-4 w-40 text-[10px] font-semibold tracking-tight focus:w-80 transition-all outline-none" />
