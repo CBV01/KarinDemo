@@ -208,19 +208,27 @@ async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
         print(f"Telegram Webhook Error: {e}")
         return {"status": "internal_error", "message": str(e)}
 
+from fastapi import FastAPI, HTTPException, Depends, Request # type: ignore
+
 @app.get("/webhook/set-telegram")
-async def set_telegram_webhook():
+async def set_telegram_webhook(request: Request):
     import httpx # type: ignore
     try:
         token = os.getenv("TELEGRAM_BOT_TOKEN")
         if not token:
             return {"status": "error", "message": "TELEGRAM_BOT_TOKEN is missing in HF Secrets!"}
             
-        username = os.getenv("HF_USERNAME", "arkilostudio").lower()
-        space_name = os.getenv("HF_SPACE_NAME", "karin").lower()
-        # On HF, subdomains use a dash between username and space name
-        full_subdomain = f"{username}-{space_name}"
-        webhook_url = f"https://{full_subdomain}.hf.space/webhook/telegram"
+        username = os.getenv("HF_USERNAME", "").lower()
+        space_name = os.getenv("HF_SPACE_NAME", "").lower()
+        
+        if username and space_name:
+            full_subdomain = f"{username}-{space_name}"
+            hostname = f"{full_subdomain}.hf.space"
+        else:
+            # Fallback to the current request's hostname
+            hostname = request.url.hostname
+            
+        webhook_url = f"https://{hostname}/webhook/telegram"
         
         async with httpx.AsyncClient() as client:
             tg_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
