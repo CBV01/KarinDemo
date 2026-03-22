@@ -1,10 +1,10 @@
 import os
 import uuid
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel
-from libsql_client import create_client, Client
-from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Depends # type: ignore
+from pydantic import BaseModel # type: ignore
+from libsql_client import create_client, Client # type: ignore
+from dotenv import load_dotenv # type: ignore
 
 # Load environment variables
 load_dotenv()
@@ -14,7 +14,7 @@ DB_TOKEN = os.getenv("TURSO_DB_TOKEN")
 
 print("🚀 FastAPI Server starting with PKCE-fix v2")
 
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
 
 app = FastAPI(title="Real Estate AI CRM")
 
@@ -168,7 +168,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
-from assistant import AIAssistant
+from assistant import AIAssistant # type: ignore
 
 @app.get("/assistant/morning-briefing")
 async def morning_briefing(db: Client = Depends(get_db)):
@@ -193,7 +193,7 @@ async def agent_webhook(data: dict, db: Client = Depends(get_db)):
     # Return response as JSON (In a real Twilio webhook, you'd return TwiML XML)
     return {"message": response}
 
-from google_auth import GoogleAuthService
+from google_auth import GoogleAuthService # type: ignore
 
 @app.get("/auth/login")
 async def google_login(db: Client = Depends(get_db)):
@@ -212,11 +212,11 @@ async def google_callback(code: str, db: Client = Depends(get_db)):
     auth_service = GoogleAuthService(db)
     await auth_service.save_token(code)
     # Redirect back to frontend
-    from fastapi.responses import RedirectResponse
+    from fastapi.responses import RedirectResponse # type: ignore
     import os
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
     return RedirectResponse(url=f"{frontend_url}/settings?auth=success")
 
 if __name__ == "__main__":
-    import uvicorn
+    import uvicorn # type: ignore
     uvicorn.run(app, host="0.0.0.0", port=8000)
