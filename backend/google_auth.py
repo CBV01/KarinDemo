@@ -71,11 +71,11 @@ class GoogleAuthService:
             ','.join(creds.scopes) if creds.scopes else '',
             creds.expiry.isoformat() if creds.expiry else None
         ]
-        self.db.execute(sql, params)
+        await self.db.execute(sql, params)
         return "Tokens saved successfully"
 
     async def get_creds(self):
-        result = self.db.execute("SELECT * FROM user_tokens WHERE service = 'google'")
+        result = await self.db.execute("SELECT * FROM user_tokens WHERE service = 'google'")
         if not result.rows:
             return None
         
@@ -92,7 +92,7 @@ class GoogleAuthService:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
             # Update DB with new access token
-            self.db.execute(
+            await self.db.execute(
                 "UPDATE user_tokens SET access_token = ?, expiry = ? WHERE service = 'google'",
                 [creds.token, creds.expiry.isoformat() if creds.expiry else None]
             )
