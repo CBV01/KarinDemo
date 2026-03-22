@@ -12,6 +12,8 @@ load_dotenv()
 DB_URL = os.getenv("TURSO_DB_URL")
 DB_TOKEN = os.getenv("TURSO_DB_TOKEN")
 
+print("🚀 FastAPI Server starting with PKCE-fix v2")
+
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Real Estate AI CRM")
