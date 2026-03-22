@@ -7,3 +7,8 @@ httpx
 google-auth-oauthlib
 google-api-python-client
 twilio
+openai
+python-multipart
+pandas
+openpyxl
+groq

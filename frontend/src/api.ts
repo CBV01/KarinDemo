@@ -12,6 +12,7 @@ export const checkAnniversaries = () => api.get('/check-anniversaries');
 export const getMorningBriefing = () => api.get('/assistant/morning-briefing');
 export const sendAgentReply = (content: string) => api.post('/assistant/reply', { agent_id: 'karen', content });
 export const rewriteContent = (content: string, tone: string = 'professional') => api.post('/assistant/rewrite', { content, tone });
+export const launchCampaign = (campaign_id: string, template_type: string, content: string) => api.post('/campaigns/launch', { campaign_id, template_type, content });
 
 // New Functionalities
 export const createLead = (data: any) => api.post('/leads', data);

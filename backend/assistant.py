@@ -1,8 +1,12 @@
+import pandas as pd
+import io
 import json
 import logging
+import os
 from datetime import datetime
+from uuid import uuid4
 from libsql_client import Client # type: ignore
-from grok_service import GrokService # type: ignore
+from groq_service import GroqService # type: ignore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,7 +15,69 @@ logger = logging.getLogger("Assistant")
 class AIAssistant:
     def __init__(self, db: Client):
         self.db = db
-        self.grok = GrokService(db)
+        self.groq = GroqService(db)
+
+    async def handle_document(self, agent_id: str, file_content: bytes, file_name: str):
+        """
+        Processes an uploaded document (CSV/Excel) and imports leads.
+        """
+        try:
+            if file_name.endswith('.csv'):
+                df = pd.read_csv(io.BytesIO(file_content))
+            elif file_name.endswith(('.xls', '.xlsx')):
+                df = pd.read_excel(io.BytesIO(file_content))
+            else:
+                return "❌ Unsupported file format. Please upload a CSV or Excel file."
+
+            # Normalize columns
+            df.columns = [c.lower().strip() for c in df.columns]
+            
+            imported_count = 0
+            for _, row in df.iterrows():
+                name = row.get('name') or row.get('full_name') or row.get('client')
+                if not name: continue
+                
+                phone = str(row.get('phone') or row.get('mobile') or "")
+                email = str(row.get('email') or "")
+                intent = str(row.get('intent') or "buyer")
+                notes = str(row.get('notes') or "")
+                
+                sql = "INSERT INTO leads (id, name, phone, email, intent, notes, source) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                await self.db.execute(sql, (str(uuid4()), name, phone, email, intent, notes, "telegram_upload"))
+                imported_count += 1
+
+            return f"✅ Successfully imported {imported_count} leads from '{file_name}'!"
+        except Exception as e:
+            logger.error(f"Error importing leads: {e}")
+            return f"❌ Failed to import leads: {str(e)}"
+
+    async def handle_voice(self, agent_id: str, audio_content: bytes):
+        """
+        Transcribes a voice note and handles it as a text command.
+        """
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            return "❌ I heard your voice note, but my 'ears' (OpenAI API) aren't configured yet. Please add OPENAI_API_KEY to secrets."
+
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+            
+            # OpenAI requires a file object with a name for transcription
+            audio_file = io.BytesIO(audio_content)
+            audio_file.name = "voice_note.ogg"
+            
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1", 
+                file=audio_file
+            )
+            
+            text = transcript.text
+            reply = await self.handle_agent_reply(agent_id, text)
+            return f"🎙️ I heard: \"{text}\"\n\n{reply}"
+        except Exception as e:
+            logger.error(f"Error transcribing voice: {e}")
+            return f"❌ Error transcribing voice: {str(e)}"
 
     async def send_daily_briefing(self, agent_id: str = "karen"):
         """
@@ -144,17 +210,17 @@ class AIAssistant:
             msg = "🔥 Recent leads:\n" + "\n".join([f"- {l['name']} ({l['source']})" for l in recent])
             return msg
 
-        # 5. Grok Fallback (Thinking mode)
+        # 5. Groq Fallback (Thinking mode)
         else:
-            print(f"Grok pondering: {content}")
-            return await self.grok.get_response(agent_id, content)
+            print(f"Groq pondering: {content}")
+            return await self.groq.get_response(agent_id, content)
 
     async def rewrite_content(self, content: str, tone: str = "professional"):
         """
-        Uses Grok to rewrite content in a specific tone.
+        Uses Groq to rewrite content in a specific tone.
         """
         prompt = f"Rewrite the following message to be more {tone}, keeping the [Tags] like [Name], [Address], etc. intact:\n\n{content}"
-        return await self.grok.get_response("system", prompt)
+        return await self.groq.get_response("system", prompt)
 
     async def log_interaction(self, agent_id: str, channel: str, direction: str, content: str):
         sql = "INSERT INTO interaction_logs (id, agent_id, channel, direction, content) VALUES (?, ?, ?, ?, ?)"

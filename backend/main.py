@@ -60,6 +60,48 @@ class AppraisalBook(BaseModel):
     address: str
     appointment_time: str
 
+import asyncio
+from datetime import datetime, time
+
+async def daily_briefing_task():
+    """
+    Background task that sends the daily briefing at 8:30 AM every day.
+    """
+    print("[STARTUP] Daily Briefing Task Initialized")
+    while True:
+        try:
+            now = datetime.now()
+            # Check if it's between 8:30 AM and 9:00 AM
+            if now.hour == 8 and now.minute >= 30:
+                # Get a DB client
+                db_url = os.getenv("TURSO_DB_URL")
+                db_token = os.getenv("TURSO_DB_TOKEN")
+                chat_id = os.getenv("TELEGRAM_CHAT_ID")
+                
+                if db_url and db_token and chat_id:
+                    from libsql_client import create_client
+                    async with create_client(url=db_url, auth_token=db_token) as db:
+                        assistant = AIAssistant(db)
+                        # Check if we already sent it today
+                        check_sql = "SELECT id FROM interaction_logs WHERE agent_id = ? AND content LIKE 'Good morning Karin!%' AND date(created_at) = date('now')"
+                        res = await db.execute(check_sql, (chat_id,))
+                        if not res.rows:
+                            print(f"Sending daily briefing to {chat_id}...")
+                            await assistant.send_daily_briefing(chat_id)
+                        else:
+                            print("Daily briefing already sent today.")
+            
+            # Wait 15 minutes before checking again
+            await asyncio.sleep(900) 
+        except Exception as e:
+            print(f"Error in daily_briefing_task: {e}")
+            await asyncio.sleep(60)
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the background task
+    asyncio.create_task(daily_briefing_task())
+
 @app.get("/")
 async def root():
     return {"message": "Real Estate AI CRM API is running"}
@@ -88,13 +130,22 @@ async def get_clients(db: Client = Depends(get_db)):
 @app.post("/properties")
 async def create_property(prop_data: PropertyCreate, db: Client = Depends(get_db)):
     prop_id = str(uuid.uuid4())
-    # Calculate next anniversary (simplified logic for now)
     sql = "INSERT INTO properties (id, client_id, address, purchase_date) VALUES (?, ?, ?, ?)"
     params = (prop_id, prop_data.client_id, prop_data.address, prop_data.purchase_date)
     
     try:
         await db.execute(sql, params)
-        return {"id": prop_id, "message": "Property added successfully"}
+        
+        # 1. Sync to Google Calendar if possible
+        # Fetch client name first
+        client_res = await db.execute("SELECT full_name FROM clients WHERE id = ?", (prop_data.client_id,))
+        if client_res.rows:
+            client_name = client_res.rows[0][0]
+            from google_auth import GoogleAuthService
+            auth_service = GoogleAuthService(db)
+            await auth_service.create_anniversary_event(client_name, prop_data.address, prop_data.purchase_date)
+            
+        return {"id": prop_id, "message": "Property added successfully and synced to calendar"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error adding property: {e}")
 
@@ -191,15 +242,46 @@ async def telegram_webhook(data: dict, db: Client = Depends(get_db)):
         
         message = data["message"]
         chat_id = str(message["chat"]["id"])
-        text = message.get("text", "")
-        
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
         assistant = AIAssistant(db)
-        reply = await assistant.handle_agent_reply(chat_id, text, channel="telegram")
         
-        # Send reply back to Telegram via assistant's robust method
-        await assistant.send_telegram_message(chat_id, reply)
+        # 1. Handle Voice Note
+        if "voice" in message:
+            file_id = message["voice"]["file_id"]
+            # Download file from Telegram
+            async with httpx.AsyncClient() as client:
+                file_info = await client.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}")
+                file_path = file_info.json()["result"]["file_path"]
+                file_res = await client.get(f"https://api.telegram.org/file/bot{token}/{file_path}")
+                audio_content = file_res.content
+            
+            reply = await assistant.handle_voice(chat_id, audio_content)
+            await assistant.send_telegram_message(chat_id, reply)
+            return {"status": "ok"}
 
-        return {"status": "ok"}
+        # 2. Handle Document (CSV/Excel)
+        elif "document" in message:
+            file_id = message["document"]["file_id"]
+            file_name = message["document"]["file_name"]
+            # Download file from Telegram
+            async with httpx.AsyncClient() as client:
+                file_info = await client.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}")
+                file_path = file_info.json()["result"]["file_path"]
+                file_res = await client.get(f"https://api.telegram.org/file/bot{token}/{file_path}")
+                file_content = file_res.content
+            
+            reply = await assistant.handle_document(chat_id, file_content, file_name)
+            await assistant.send_telegram_message(chat_id, reply)
+            return {"status": "ok"}
+
+        # 3. Handle Text Message
+        elif "text" in message:
+            text = message["text"]
+            reply = await assistant.handle_agent_reply(chat_id, text, channel="telegram")
+            await assistant.send_telegram_message(chat_id, reply)
+            return {"status": "ok"}
+            
+        return {"status": "unsupported_type"}
     except Exception as e:
         print(f"Telegram Webhook Error: {e}")
         return {"status": "internal_error", "message": str(e)}
@@ -269,8 +351,42 @@ async def set_telegram_webhook(request: Request):
 
 from google_auth import GoogleAuthService # type: ignore
 
-@app.get("/auth/login")
-async def google_login(db: Client = Depends(get_db)):
+from sms_service import SmsService # type: ignore
+
+class CampaignLaunchRequest(BaseModel):
+    campaign_id: str
+    template_type: str # 'email', 'sms'
+    content: str
+
+@app.post("/campaigns/launch")
+async def launch_campaign(req: CampaignLaunchRequest, db: Client = Depends(get_db)):
+    """
+    Launches a campaign by sending messages to all eligible contacts.
+    """
+    sms_service = SmsService()
+    
+    # 1. Fetch eligible contacts (demo: all leads for now)
+    leads_res = await db.execute("SELECT name, phone FROM leads")
+    leads = [dict(zip(leads_res.columns, row)) for row in leads_res.rows]
+    
+    sent_count = 0
+    for lead in leads:
+        if not lead['phone']: continue
+        
+        # Personalized content
+        msg = req.content.replace("[Name]", lead['name'])
+        
+        if req.template_type == 'sms':
+            success = await sms_service.send_sms(lead['phone'], msg)
+            if success: sent_count += 1
+            
+        # Log interaction
+        await db.execute(
+            "INSERT INTO interaction_logs (id, agent_id, channel, direction, content) VALUES (?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), "system", req.template_type, "outbound", msg)
+        )
+        
+    return {"message": f"Campaign launched. Sent {sent_count} {req.template_type}s."}
     auth_service = GoogleAuthService(db)
     url = auth_service.get_auth_url()
     return {"url": url}

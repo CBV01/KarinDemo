@@ -90,6 +90,51 @@ class GoogleAuthService:
         await self.db.execute(sql, params)
         return "Tokens saved successfully"
 
+    async def create_anniversary_event(self, client_name: str, property_address: str, purchase_date: str):
+        """
+        Creates a calendar event for a property anniversary.
+        """
+        creds = await self.get_creds()
+        if not creds:
+            print("❌ Google Calendar not connected. Cannot create event.")
+            return False
+
+        try:
+            service = build('calendar', 'v3', credentials=creds)
+            
+            # Purchase date is YYYY-MM-DD. Anniversary is every year.
+            # We'll create a recurring yearly event.
+            event = {
+                'summary': f"🏠 Anniversary: {client_name} ({property_address})",
+                'location': property_address,
+                'description': f"Anniversary of property purchase for {client_name}.",
+                'start': {
+                    'date': purchase_date,
+                    'timeZone': 'Pacific/Auckland',
+                },
+                'end': {
+                    'date': purchase_date,
+                    'timeZone': 'Pacific/Auckland',
+                },
+                'recurrence': [
+                    'RRULE:FREQ=YEARLY'
+                ],
+                'reminders': {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'email', 'minutes': 24 * 60},
+                        {'method': 'popup', 'minutes': 10},
+                    ],
+                },
+            }
+
+            event = service.events().insert(calendarId='primary', body=event).execute()
+            print(f"✅ Calendar event created: {event.get('htmlLink')}")
+            return True
+        except Exception as e:
+            print(f"❌ Error creating calendar event: {e}")
+            return False
+
     async def get_creds(self):
         result = await self.db.execute("SELECT * FROM user_tokens WHERE service = 'google'")
         if not result.rows:

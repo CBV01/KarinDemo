@@ -86,6 +86,21 @@ const App = () => {
       }
    };
 
+   const handleLaunchCampaign = async (type: 'email' | 'sms') => {
+      const content = type === 'email' ? emailTemplate : smsTemplate;
+      showToast(`Launching ${type} campaign...`, 'info');
+      try {
+         const res = await api.post('/campaigns/launch', { 
+            campaign_id: 'manual-trigger', 
+            template_type: type, 
+            content 
+         });
+         showToast(res.data.message, 'success');
+      } catch (err) {
+         showToast('Campaign launch failed.', 'info');
+      }
+   };
+
    const showToast = (message: string, type: 'success' | 'info' = 'success') => {
       setToast({ message, type });
       setTimeout(() => setToast(null), 3000);
@@ -407,7 +422,13 @@ const App = () => {
                      <tr key={i} className="hover:bg-slate-50/40 border-b border-slate-50 transition-colors group">
                         <td className="pl-8 py-5">
                            <p className="font-bold text-slate-800 text-[14px] leading-none mb-1.5">{lead.name}</p>
-                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Globe size={11} className="text-indigo-600/50" /> {lead.source} • Inbound Stream</p>
+                           <div className="flex flex-col gap-1">
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Globe size={11} className="text-indigo-600/50" /> {lead.source} • Inbound Stream</p>
+                              <div className="flex items-center gap-3">
+                                 {lead.email && <span className="text-[9px] font-bold text-slate-500 lowercase flex items-center gap-1"><Mail size={10} /> {lead.email}</span>}
+                                 {lead.phone && <span className="text-[9px] font-bold text-slate-500 flex items-center gap-1"><Smartphone size={10} /> {lead.phone}</span>}
+                              </div>
+                           </div>
                         </td>
                         <td>
                            <p className="text-xs font-semibold text-slate-600 flex items-center gap-2"><Building size={14} className="text-slate-300" /> {lead.property_address || 'Address Discovery Active'}</p>
@@ -746,7 +767,8 @@ const App = () => {
                         />
                         <div className="flex gap-2">
                            <button onClick={() => handleRewrite('email')} className="flex-1 py-2.5 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all">Regenerate with AI</button>
-                           <button onClick={() => setEmailTemplate("Hi [Name],\n\nKarin was just reviewing your 2-year settlement anniversary at [Address]. Rodney market data shows a strong upward drift since [Date].\n\nWould you be open to seeing the fresh valuation report my AI engine just drafted for you?")} className="flex-1 py-2.5 bg-white border border-slate-100 text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded-xl hover:text-indigo-600 hover:border-indigo-100 transition-all">Reset to Default</button>
+                           <button onClick={() => handleLaunchCampaign('email')} className="flex-1 py-2.5 bg-indigo-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Execute Email Pulse</button>
+                           <button onClick={() => setEmailTemplate("Hi [Name],\n\nKarin was just reviewing your 2-year settlement anniversary at [Address]. Rodney market data shows a strong upward drift since [Date].\n\nWould you be open to seeing the fresh valuation report my AI engine just drafted for you?")} className="px-4 py-2.5 bg-white border border-slate-100 text-slate-400 text-[9px] font-bold uppercase tracking-widest rounded-xl hover:text-indigo-600 hover:border-indigo-100 transition-all">Reset</button>
                         </div>
                      </div>
                   </div>
@@ -776,7 +798,10 @@ const App = () => {
                            value={smsTemplate}
                            onChange={(e) => setSmsTemplate(e.target.value)}
                         />
-                        <button onClick={() => handleRewrite('sms')} className="w-full py-2.5 bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-900 transition-all">Refine Tone with AI</button>
+                        <div className="flex gap-2">
+                           <button onClick={() => handleRewrite('sms')} className="flex-1 py-2.5 bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-900 transition-all">Refine Tone with AI</button>
+                           <button onClick={() => handleLaunchCampaign('sms')} className="flex-1 py-2.5 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-black transition-all shadow-lg shadow-slate-200">Execute SMS Pulse</button>
+                        </div>
                      </div>
                   </div>
                </div>
