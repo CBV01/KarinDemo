@@ -247,7 +247,7 @@ async def google_status(db: Client = Depends(get_db)):
     return {"connected": creds is not None}
 
 @app.get("/auth/callback")
-async def google_callback(code: str = None, error: str = None, db: Client = Depends(get_db)):
+async def google_callback(code: Optional[str] = None, error: Optional[str] = None, db: Client = Depends(get_db)):
     """ Final Step of the Google Handshake. """
     if error:
         return {"status": "error", "message": f"Google returned error: {error}"}
