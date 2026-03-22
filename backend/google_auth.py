@@ -1,11 +1,11 @@
 import os
 import json
 import datetime
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from libsql_client import Client
+from google_auth_oauthlib.flow import Flow # type: ignore
+from googleapiclient.discovery import build # type: ignore
+from google.oauth2.credentials import Credentials # type: ignore
+from google.auth.transport.requests import Request # type: ignore
+from libsql_client import Client # type: ignore
 
 class GoogleAuthService:
     def __init__(self, db: Client):
@@ -61,21 +61,21 @@ class GoogleAuthService:
                 refresh_token=excluded.refresh_token,
                 expiry=excluded.expiry
         """
-        params = (
+        params = [
             'google',
             creds.token,
             creds.refresh_token,
             creds.token_uri,
             creds.client_id,
             creds.client_secret,
-            ','.join(creds.scopes),
+            ','.join(creds.scopes) if creds.scopes else '',
             creds.expiry.isoformat() if creds.expiry else None
-        )
-        await self.db.execute(sql, params)
+        ]
+        self.db.execute(sql, params)
         return "Tokens saved successfully"
 
     async def get_creds(self):
-        result = await self.db.execute("SELECT * FROM user_tokens WHERE service = 'google'")
+        result = self.db.execute("SELECT * FROM user_tokens WHERE service = 'google'")
         if not result.rows:
             return None
         
@@ -92,9 +92,9 @@ class GoogleAuthService:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
             # Update DB with new access token
-            await self.db.execute(
+            self.db.execute(
                 "UPDATE user_tokens SET access_token = ?, expiry = ? WHERE service = 'google'",
-                (creds.token, creds.expiry.isoformat() if creds.expiry else None)
+                [creds.token, creds.expiry.isoformat() if creds.expiry else None]
             )
         
         return creds
