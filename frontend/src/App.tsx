@@ -120,14 +120,14 @@ const App = () => {
       try {
          const [briefRes, annivRes, leadsRes, clientsRes, intRes, googleRes] = await Promise.all([
             api.get('/assistant/morning-briefing'),
-            api.get('/check-anniversaries'),
+            api.get('/anniversaries'),
             api.get('/leads'),
             api.get('/clients'),
             api.get('/interactions'),
             api.get('/auth/status')
          ]);
          setBriefingMsg(briefRes.data.content);
-         setAnniversaries(annivRes.data.today_anniversaries);
+         setAnniversaries(annivRes.data);
          setLeads(leadsRes.data);
          setClients(clientsRes.data);
          setInteractions(intRes.data);
@@ -453,7 +453,12 @@ const App = () => {
                               <span className="text-[9px] font-bold text-indigo-400 uppercase leading-none">Intent: {lead.intent}</span>
                            </div>
                         </td>
-                        <td className="pr-8 text-right opacity-0 group-hover:opacity-100 transition-all"><button className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm border border-slate-50"><MoreHorizontal size={18} /></button></td>
+                        <td className="pr-8 text-right opacity-0 group-hover:opacity-100 transition-all">
+                           <div className="flex items-center gap-2 justify-end">
+                              <button onClick={async () => { showToast(`Sending SMS to ${lead.name}...`, 'info'); try { await api.post('/campaigns/launch', { campaign_id: 'manual', template_type: 'sms', content: smsTemplate.replace('[Name]', lead.name) }); showToast(`SMS sent to ${lead.name}!`, 'success'); } catch { showToast('SMS failed.', 'info'); }}} className="px-3 py-1.5 bg-indigo-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-lg hover:bg-indigo-700 flex items-center gap-1.5"><Send size={10}/> SMS</button>
+                              <button onClick={() => setActiveModal('BOOK_APPRAISAL')} className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm border border-slate-50"><MoreHorizontal size={18} /></button>
+                           </div>
+                        </td>
                      </tr>
                   ))}
                </tbody>
@@ -482,17 +487,34 @@ const App = () => {
             </div>
          </div>
          <div className="premium-card overflow-hidden">
-            <table className="premium-table w-full text-left">
-               <thead><tr className="bg-slate-50/50"><th className="pl-8 py-4">Portfolio Identification</th><th>Channel Details</th><th className="pr-10 text-right">Settings</th></tr></thead>
-               <tbody>
-                  {clients.map((client, i) => (
-                     <tr key={i} className="hover:bg-slate-50/40 border-b border-slate-50 transition-colors">
-                        <td className="font-bold text-slate-800 pl-8 py-6 text-sm flex items-center gap-4">
-                           <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold uppercase">{client.full_name[0]}</div>
-                           {client.full_name}
-                        </td>
-                        <td><div className="flex items-center gap-4"><div className="flex items-center gap-2"><Mail size={12} className="text-indigo-600/40" /><span className="text-xs font-semibold text-slate-600">{client.email}</span></div><div className="flex items-center gap-2 border-l border-slate-100 pl-4"><Smartphone size={12} className="text-emerald-500/40" /><span className="text-xs font-semibold text-slate-600">{client.phone}</span></div></div></td>
-                        <td className="pr-10 text-right"><button className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm border border-slate-50"><MoreHorizontal size={18} /></button></td>
+             <table className="premium-table w-full text-left">
+                <thead><tr className="bg-slate-50/50"><th className="pl-8 py-4">Portfolio Identification</th><th>Contact Details</th><th>Notes</th><th className="pr-10 text-right">Actions</th></tr></thead>
+                <tbody>
+                   {clients.length === 0 ? (
+                      <tr><td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-[10px]">No clients yet. Add your first client above.</td></tr>
+                   ) : clients.map((client, i) => (
+                      <tr key={i} className="hover:bg-slate-50/40 border-b border-slate-50 transition-colors group">
+                         <td className="font-bold text-slate-800 pl-8 py-5 text-sm">
+                            <div className="flex items-center gap-3">
+                               <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-black uppercase">{client.full_name?.[0]}</div>
+                               <div>
+                                  <p className="font-bold text-slate-800 text-[13px] leading-none mb-1">{client.full_name}</p>
+                               </div>
+                            </div>
+                         </td>
+                         <td>
+                            <div className="flex flex-col gap-1">
+                               {client.email && <div className="flex items-center gap-2"><Mail size={11} className="text-indigo-400" /><span className="text-[11px] font-semibold text-slate-600">{client.email}</span></div>}
+                               {client.phone && <div className="flex items-center gap-2"><Smartphone size={11} className="text-emerald-500" /><span className="text-[11px] font-semibold text-slate-600">{client.phone}</span></div>}
+                            </div>
+                         </td>
+                         <td><span className="text-[11px] text-slate-500">{client.notes || '—'}</span></td>
+                         <td className="pr-10 text-right opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex items-center gap-2 justify-end">
+                               <button onClick={() => setActiveModal('BOOK_APPRAISAL')} className="px-3 py-1.5 bg-white border border-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-widest rounded-lg hover:border-indigo-200 hover:text-indigo-600 flex items-center gap-1.5"><Calendar size={10}/> Appraisal</button>
+                               <button onClick={() => showToast(`Drafting email for ${client.full_name}...`, 'info')} className="px-3 py-1.5 bg-indigo-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-lg hover:bg-indigo-700 flex items-center gap-1.5"><Mail size={10}/> Email</button>
+                            </div>
+                         </td>
                      </tr>
                   ))}
                </tbody>
@@ -517,11 +539,11 @@ const App = () => {
       }
 
       const getAnniversaryDetails = (day: number) => {
-         const matchingAnniversaries = anniversaries.filter(anniv => {
-            const annivDate = new Date(anniv.anniversary_date);
-            return annivDate.getMonth() === currentMonth && annivDate.getDate() === day;
+         return anniversaries.filter(anniv => {
+            // purchase_date is YYYY-MM-DD; match by month-day for recurring anniversary
+            const d = new Date(anniv.purchase_date || anniv.anniversary_date);
+            return d.getMonth() === currentMonth && d.getDate() === day;
          });
-         return matchingAnniversaries;
       };
 
       return (
@@ -568,7 +590,7 @@ const App = () => {
                               <div className="mt-2 space-y-1">
                                  {dayAnniversaries.map((anniv, idx) => (
                                     <div key={idx} className="p-1 px-2 bg-rose-50 border border-rose-100/50 rounded-md text-[8px] font-bold text-rose-600 uppercase truncate">
-                                       {anniv.address}
+                                       {anniv.full_name || anniv.address}
                                     </div>
                                  ))}
                                  <div className="p-1 px-2 bg-indigo-50 border border-indigo-100/30 rounded-md text-[8px] font-bold text-indigo-600 uppercase tracking-tighter">
@@ -595,44 +617,45 @@ const App = () => {
                      </tr>
                   </thead>
                   <tbody>
-                     {anniversaries.map((app, i) => {
-                        const years = app.tenure_years || (Math.floor(Math.random() * 5) + 2); // Use actual tenure if available, else simulate
-                        return (
-                           <tr key={i} className="hover:bg-slate-50/50 transition border-b border-slate-50 last:border-none group">
-                              <td className="pl-6 py-5">
-                                 <p className="font-semibold text-slate-800 text-[13px]">{app.address}</p>
-                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">EST. VALUE: $1.2M - $1.4M</p>
-                              </td>
-                              <td className="text-sm font-medium text-slate-600">{app.full_name}</td>
-                              <td>
-                                 <div className="flex items-center gap-2">
-                                    <span className="text-xl font-bold text-indigo-600 tracking-tighter">{years}Y</span>
-                                    <span className="text-[10px] font-bold text-slate-300 uppercase leading-none">Tenure</span>
-                                 </div>
-                              </td>
-                              <td>
-                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-[10px] font-bold text-indigo-500 py-1 px-2 bg-indigo-50 rounded uppercase tracking-tighter">PHASE: APPR TRIGGER</span>
-                                 </div>
-                              </td>
-                              <td className="pr-6 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <div className="flex items-center gap-2 justify-end">
-                                    <button
-                                       onClick={() => setActiveModal('APPRAISAL_CALCULATOR')}
-                                       className="px-4 py-2 bg-white border border-slate-100 text-indigo-600 text-[9px] font-bold uppercase tracking-widest rounded-lg hover:border-indigo-100 flex items-center gap-2">
-                                       <Calculator size={12} /> Appraisal Calc
-                                    </button>
-                                    <button
-                                       onClick={() => setActiveModal('ANNIVERSARY_LETTER')}
-                                       className="px-4 py-2 bg-slate-50 border border-slate-100 text-slate-800 text-[9px] font-bold uppercase tracking-widest rounded-lg hover:border-indigo-100 flex items-center gap-2">
-                                       <FileText size={12} /> Generate Letter
-                                    </button>
-                                 </div>
-                              </td>
-                           </tr>
-                        );
-                     })}
+                        {anniversaries.length === 0 ? (
+                      <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-[10px]">No property records yet. Add clients and properties to populate this view.</td></tr>
+                   ) : anniversaries.map((app, i) => {
+                      const purchaseYear = app.purchase_date ? new Date(app.purchase_date).getFullYear() : null;
+                      const years = purchaseYear ? new Date().getFullYear() - purchaseYear : '?';
+                      return (
+                         <tr key={i} className="hover:bg-slate-50/50 transition border-b border-slate-50 last:border-none group">
+                            <td className="pl-6 py-5">
+                               <p className="font-semibold text-slate-800 text-[13px]">{app.address}</p>
+                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mt-0.5">Purchased: {app.purchase_date || 'N/A'}</p>
+                            </td>
+                            <td>
+                               <p className="text-[13px] font-semibold text-slate-700 leading-none mb-1">{app.full_name}</p>
+                               <div className="flex flex-col gap-0.5 mt-1">
+                                  {app.email && <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1"><Mail size={9}/> {app.email}</span>}
+                                  {app.phone && <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1"><Smartphone size={9}/> {app.phone}</span>}
+                               </div>
+                            </td>
+                            <td>
+                               <div className="flex items-center gap-2">
+                                  <span className="text-xl font-bold text-indigo-600 tracking-tighter">{years}Y</span>
+                                  <span className="text-[10px] font-bold text-slate-300 uppercase leading-none">Tenure</span>
+                               </div>
+                            </td>
+                            <td>
+                               <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                  <span className="text-[10px] font-bold text-indigo-500 py-1 px-2 bg-indigo-50 rounded uppercase tracking-tighter">APPR TRIGGER</span>
+                               </div>
+                            </td>
+                            <td className="pr-6 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                               <div className="flex items-center gap-2 justify-end">
+                                  <button onClick={() => setActiveModal('APPRAISAL_CALCULATOR')} className="px-4 py-2 bg-white border border-slate-100 text-indigo-600 text-[9px] font-bold uppercase tracking-widest rounded-lg hover:border-indigo-100 flex items-center gap-2"><Calculator size={12} /> Appraisal</button>
+                                  <button onClick={() => setActiveModal('ANNIVERSARY_LETTER')} className="px-4 py-2 bg-indigo-600 text-white text-[9px] font-bold uppercase tracking-widest rounded-lg hover:bg-indigo-700 flex items-center gap-2"><Mail size={12} /> Send Letter</button>
+                               </div>
+                            </td>
+                         </tr>
+                      );
+                   })}
                   </tbody>
                </table>
             </div>
