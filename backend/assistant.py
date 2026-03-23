@@ -150,16 +150,28 @@ class AIAssistant:
         Gathers current system status to provide context for Groq.
         """
         try:
-            # 1. Get today's anniversaries
+            # 1. Get today's anniversaries (From both Properties and Leads)
             today_mm_dd = datetime.now().strftime("%m-%d")
-            anniv_sql = """
+            
+            # Anniversaries from Properties (Existing Clients)
+            anniv_prop_sql = """
                 SELECT p.address, c.full_name 
                 FROM properties p 
                 JOIN clients c ON p.client_id = c.id 
                 WHERE strftime('%m-%d', p.purchase_date) = ?
             """
-            anniv_res = await self.db.execute(anniv_sql, (today_mm_dd,))
-            anniversaries = [f"{row[1]} at {row[0]}" for row in anniv_res.rows]
+            anniv_prop_res = await self.db.execute(anniv_prop_sql, (today_mm_dd,))
+            
+            # Anniversaries from Leads (Prospects with known purchase dates)
+            anniv_lead_sql = """
+                SELECT property_address, name 
+                FROM leads 
+                WHERE strftime('%m-%d', purchase_date) = ?
+            """
+            anniv_lead_res = await self.db.execute(anniv_lead_sql, (today_mm_dd,))
+
+            anniversaries = [f"{row[1]} at {row[0]}" for row in anniv_prop_res.rows]
+            anniversaries += [f"{row[1]} (Lead) at {row[0]}" for row in anniv_lead_res.rows]
 
             # 2. Get recent leads (last 24h)
             leads_sql = "SELECT name FROM leads WHERE created_at >= date('now', '-1 day')"

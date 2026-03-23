@@ -581,7 +581,7 @@ const App = () => {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Automated cycle detection: Year 1, 2, 5, 10</p>
                </div>
                <button
-                  onClick={() => showToast('Proprietary matrix sync active. Scanning 500+ ownership nodes...')}
+                  onClick={handleManualScan}
                   className="btn-premium px-8 rounded-lg flex items-center gap-3">
                   <Zap size={14} strokeWidth={3} /> Rescan Market Nodes
                </button>

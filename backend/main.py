@@ -163,20 +163,18 @@ async def get_properties(db: Client = Depends(get_db)):
 @app.get("/anniversaries")
 async def get_anniversaries(db: Client = Depends(get_db)):
     # Fetch all property ownership records for the calendar/list projection
+    # Also include leads with purchase dates
     sql = """
-        SELECT p.*, c.full_name, c.email, c.phone 
+        SELECT p.id, p.address as property_address, c.full_name as name, c.email, c.phone, p.purchase_date, 'client' as type
         FROM properties p 
         JOIN clients c ON p.client_id = c.id
+        UNION ALL
+        SELECT id, property_address, name, email, phone, purchase_date, 'lead' as type
+        FROM leads
+        WHERE purchase_date IS NOT NULL
     """
-    # If we want a specific projection, we can add WHERE logic
     result = await db.execute(sql)
-    # Map address to property_address for frontend consistency if needed
-    anniversaries = []
-    for row in result.rows:
-        d = dict(zip(result.columns, row))
-        d['property_address'] = d.get('address') # Sync naming
-        anniversaries.append(d)
-    return anniversaries
+    return [dict(zip(result.columns, row)) for row in result.rows]
 
 @app.get("/leads")
 async def get_leads(db: Client = Depends(get_db)):
