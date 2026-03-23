@@ -12,7 +12,7 @@ class GroqService:
         else:
             self.client = None
 
-    async def get_response(self, user_id: str, message: str) -> str:
+    async def get_response(self, user_id: str, message: str, context: str = "") -> str:
         if not self.client:
             return "❌ Groq brain error: GROQ_API_KEY is missing in HF Secrets!"
 
@@ -20,7 +20,11 @@ class GroqService:
         history_sql = "SELECT role, content FROM chat_history WHERE user_id = ? ORDER BY created_at ASC LIMIT 10"
         result = await self.db.execute(history_sql, (user_id,))
         
-        messages = [{"role": "system", "content": "You are Karin's Real Estate AI Assistant. Help her manage leads, anniversaries, and campaigns. Keep it professional but friendly."}]
+        system_content = "You are Karin's Real Estate AI Assistant. Help her manage leads, anniversaries, and campaigns. Keep it professional but friendly."
+        if context:
+            system_content += f"\n\nCURRENT SYSTEM CONTEXT:\n{context}\n\nUse this context to answer naturally. If there are anniversaries or leads, mention them as if you already know about them."
+            
+        messages = [{"role": "system", "content": system_content}]
         
         for row in result.rows:
             messages.append({"role": row[0], "content": row[1]})

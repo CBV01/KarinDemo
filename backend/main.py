@@ -52,7 +52,9 @@ class LeadCreate(BaseModel):
     phone: str
     intent: str
     source: str
+    email: Optional[str] = None
     property_address: Optional[str] = None
+    purchase_date: Optional[str] = None
     budget: Optional[str] = None
 
 class AppraisalBook(BaseModel):
@@ -156,19 +158,23 @@ async def get_properties(db: Client = Depends(get_db)):
 
 # --- Anniversary Engine (Manual Trigger for Testing) ---
 
-@app.get("/check-anniversaries")
-async def check_anniversaries(db: Client = Depends(get_db)):
-    # Today's MM-DD
-    from datetime import datetime
-    today_mm_dd = datetime.now().strftime("%m-%d")
-    
-    # Query for anniversaries (SQLite/libSQL syntax)
-    # purchase_date is YYYY-MM-DD
-    sql = "SELECT p.*, c.full_name, c.email, c.phone FROM properties p JOIN clients c ON p.client_id = c.id WHERE strftime('%m-%d', p.purchase_date) = ?"
-    result = await db.execute(sql, (today_mm_dd,))
-    
-    anniversaries = [dict(zip(result.columns, row)) for row in result.rows]
-    return {"today_anniversaries": anniversaries, "count": len(anniversaries)}
+@app.get("/anniversaries")
+async def get_anniversaries(db: Client = Depends(get_db)):
+    # Fetch all property ownership records for the calendar/list projection
+    sql = """
+        SELECT p.*, c.full_name, c.email, c.phone 
+        FROM properties p 
+        JOIN clients c ON p.client_id = c.id
+    """
+    # If we want a specific projection, we can add WHERE logic
+    result = await db.execute(sql)
+    # Map address to property_address for frontend consistency if needed
+    anniversaries = []
+    for row in result.rows:
+        d = dict(zip(result.columns, row))
+        d['property_address'] = d.get('address') # Sync naming
+        anniversaries.append(d)
+    return anniversaries
 
 @app.get("/leads")
 async def get_leads(db: Client = Depends(get_db)):
@@ -183,8 +189,11 @@ async def get_interactions(db: Client = Depends(get_db)):
 @app.post("/leads")
 async def create_lead(lead: LeadCreate, db: Client = Depends(get_db)):
     lead_id = str(uuid.uuid4())
-    sql = "INSERT INTO leads (id, name, phone, intent, source, property_address, budget) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    params = (lead_id, lead.name, lead.phone, lead.intent, lead.source, lead.property_address, lead.budget)
+    sql = """
+        INSERT INTO leads (id, name, phone, email, intent, source, property_address, purchase_date, budget) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source, lead.property_address, lead.purchase_date, lead.budget)
     try:
         await db.execute(sql, params)
         # Log automation start

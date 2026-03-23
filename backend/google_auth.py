@@ -174,5 +174,28 @@ class GoogleAuthService:
         message['subject'] = subject
         
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
-        return True
+        sent_msg = service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+        return sent_msg.get('id')
+
+    async def get_email_updates(self, thread_id: str):
+        """
+        Checks if there are any new messages in a thread (replies).
+        """
+        creds = await self.get_creds()
+        if not creds:
+            return None
+        
+        try:
+            service = build('gmail', 'v1', credentials=creds)
+            thread = service.users().threads().get(userId='me', id=thread_id).execute()
+            messages = thread.get('messages', [])
+            
+            if len(messages) > 1:
+                # There are replies
+                latest = messages[-1]
+                snippet = latest.get('snippet', '')
+                return snippet
+            return None
+        except Exception as e:
+            print(f"Error fetching email updates: {e}")
+            return None

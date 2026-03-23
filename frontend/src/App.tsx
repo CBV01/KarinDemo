@@ -165,7 +165,9 @@ const App = () => {
             await api.post('/leads', {
                name: formData.name,
                phone: formData.phone,
+               email: formData.email,
                property_address: formData.address,
+               purchase_date: formData.purchase_date,
                intent: 'seller',
                source: 'Manual Entry'
             });
@@ -1096,6 +1098,10 @@ const App = () => {
                               <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mobile Stream (NZ +64)</label><input type="text" placeholder="+64 21 000 000" value={formData.phone || ''} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="input-premium" /></div>
                            </div>
                            <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Property Hub Address</label><input type="text" placeholder="123 Silverdale Road, Rodney..." value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} className="input-premium" /></div>
+                           <div className="grid grid-cols-2 gap-6">
+                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Purchase Date</label><input type="date" value={formData.purchase_date || ''} onChange={(e) => setFormData({...formData, purchase_date: e.target.value})} className="input-premium" /></div>
+                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Email</label><input type="email" placeholder="client@example.com" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="input-premium" /></div>
+                           </div>
                         </div>
                      )}
 
