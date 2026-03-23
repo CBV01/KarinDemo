@@ -29,7 +29,6 @@ import {
    Calendar,
    Settings,
    X,
-   FileText,
    Link,
    Calculator,
    Upload
