@@ -15,6 +15,7 @@ export const rewriteContent = (content: string, tone: string = 'professional') =
 export const launchCampaign = (campaign_id: string, template_type: string, content: string) => api.post('/campaigns/launch', { campaign_id, template_type, content });
 
 // New Functionalities
+export const createClient = (data: any) => api.post('/clients', data);
 export const createLead = (data: any) => api.post('/leads', data);
 export const bulkImport = (data: any[]) => api.post('/bulk-import', data);
 export const bookAppraisal = (data: any) => api.post('/appraisals/book', data);

@@ -233,6 +233,23 @@ class AIAssistant:
             {
                 "type": "function",
                 "function": {
+                    "name": "add_lead",
+                    "description": "Adds a new lead to the CRM database.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Full name of the lead"},
+                            "phone": {"type": "string", "description": "Phone number"},
+                            "email": {"type": "string", "description": "Email address"},
+                            "intent": {"type": "string", "enum": ["buyer", "seller"], "description": "Whether they are a buyer or seller"}
+                        },
+                        "required": ["name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "fetch_database_summary",
                     "description": "Gets current counts of leads and clients.",
                     "parameters": {"type": "object", "properties": {}}
@@ -241,23 +258,9 @@ class AIAssistant:
             {
                 "type": "function",
                 "function": {
-                    "name": "draft_anniversary_emails",
-                    "description": "Prepares and shows drafts for today's property anniversaries.",
+                    "name": "get_anniversaries",
+                    "description": "Checks for property purchase anniversaries for today.",
                     "parameters": {"type": "object", "properties": {}}
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "show_follow_up_sequence",
-                    "description": "Shows the Email -> SMS -> Call sequence for a specific lead.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Name of the lead"}
-                        },
-                        "required": ["name"]
-                    }
                 }
             }
         ]
@@ -279,26 +282,39 @@ class AIAssistant:
                     google = GoogleAuthService(self.db)
                     tid = await google.send_email(args['to'], args['subject'], args['body'])
                     results.append(f"✅ Email sent to {args['to']} (ID: {tid})")
-                    await self.log_interaction(agent_id, "email", "outbound", args['body'], metadata=json.dumps({"thread_id": tid}))
+                    await self.log_interaction(agent_id, "email", "outbound", args['body'], metadata=json.dumps({"thread_id": tid, "recipient": args['to']}))
                 
                 elif func_name == "send_sms":
                     sms = SmsService()
                     success = await sms.send_sms(args['to'], args['message'])
                     results.append(f"✅ SMS sent to {args['to']}" if success else "❌ SMS failed")
                     await self.log_interaction(agent_id, "sms", "outbound", args['message'])
-                
-                elif func_name == "draft_anniversary_emails":
-                    draft_content = await self.execute_anniversary_emails(agent_id, dry_run=True)
-                    results.append(f"📄 Drafted Anniversary Emails:\n\n{draft_content}")
 
-                elif func_name == "show_follow_up_sequence":
-                    results.append(f"⏱️ Sequence for {args['name']}:\n"
-                                 f"1. Email (Personalized Anniversary Brief)\n"
-                                 f"2. SMS Nudge (4 hours later)\n"
-                                 f"3. AI Voice Call (24 hours later if no reply)")
+                elif func_name == "add_lead":
+                    sql = "INSERT INTO leads (id, name, phone, email, intent, source) VALUES (?, ?, ?, ?, ?, ?)"
+                    lid = str(uuid4())
+                    await self.db.execute(sql, (lid, args['name'], args.get('phone', ''), args.get('email', ''), args.get('intent', 'buyer'), channel))
+                    results.append(f"✅ Added lead: {args['name']}")
 
-            # Ask Groq to summarize the execution CONCISELY
-            summary_prompt = f"I executed: {', '.join(results)}. Please give a short (1-2 sentence) confirmation to Karin."
+                elif func_name == "get_anniversaries":
+                    today_mm_dd = datetime.now().strftime("%m-%d")
+                    sql = """
+                        SELECT p.address, c.full_name 
+                        FROM properties p 
+                        JOIN clients c ON p.client_id = c.id 
+                        WHERE strftime('%m-%d', p.purchase_date) = ?
+                    """
+                    res = await self.db.execute(sql, (today_mm_dd,))
+                    anniversaries = [f"{row[1]} at {row[0]}" for row in res.rows]
+                    results.append(f"TODAY'S ANNIVERSARIES: {', '.join(anniversaries)}" if anniversaries else "No anniversaries today.")
+
+                elif func_name == "fetch_database_summary":
+                    client_count = (await self.db.execute("SELECT COUNT(*) FROM clients")).rows[0][0]
+                    lead_count = (await self.db.execute("SELECT COUNT(*) FROM leads")).rows[0][0]
+                    results.append(f"Database Summary: {client_count} Clients, {lead_count} Leads.")
+
+            # Ask Groq to summarize the execution
+            summary_prompt = f"I executed: {', '.join(results)}. Please give a final conversational confirmation to Karin. IF IT WAS A GREETING ONLY, IGNORE THE SUMMARY AND JUST BE POLITE."
             return await self.groq.get_response(agent_id, summary_prompt, context=context)
 
         return response

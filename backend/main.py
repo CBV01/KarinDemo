@@ -86,8 +86,9 @@ async def daily_briefing_task():
                     async with create_client(url=db_url, auth_token=db_token) as db:
                         assistant = AIAssistant(db)
                         # Check if we already sent it today
-                        check_sql = "SELECT id FROM interaction_logs WHERE agent_id = ? AND content LIKE 'Good morning Karin!%' AND date(created_at) = date('now')"
-                        res = await db.execute(check_sql, (chat_id,))
+                        today_date = datetime.now().strftime("%Y-%m-%d")
+                        check_sql = "SELECT id FROM interaction_logs WHERE agent_id = ? AND content LIKE 'Good morning Karin!%' AND date(created_at) = ?"
+                        res = await db.execute(check_sql, (chat_id, today_date))
                         if not res.rows:
                             print(f"Sending daily briefing to {chat_id}...")
                             await assistant.send_daily_briefing(chat_id)
@@ -187,6 +188,19 @@ async def get_interactions(db: Client = Depends(get_db)):
     result = await db.execute("SELECT * FROM interaction_logs ORDER BY created_at DESC LIMIT 20")
     return [dict(zip(result.columns, row)) for row in result.rows]
 
+@app.get("/assistant/check-anniversaries")
+async def manual_anniversary_check(db: Client = Depends(get_db)):
+    """
+    Manually triggers an anniversary check and sends a briefing to Telegram.
+    """
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not chat_id:
+        return {"status": "error", "message": "TELEGRAM_CHAT_ID not set"}
+    
+    assistant = AIAssistant(db)
+    msg = await assistant.send_daily_briefing(chat_id)
+    return {"status": "ok", "message": "Anniversary scan complete", "briefing": msg}
+
 @app.post("/leads")
 async def create_lead(lead: LeadCreate, db: Client = Depends(get_db)):
     lead_id = str(uuid.uuid4())
@@ -198,6 +212,20 @@ async def create_lead(lead: LeadCreate, db: Client = Depends(get_db)):
         """
         params = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source, lead.property_address, lead.purchase_date, lead.budget)
         await db.execute(sql, params)
+        
+        # --- AUTO SCAN ON ADD ---
+        # If a purchase date was provided, trigger a scan to see if it's an anniversary
+        if lead.purchase_date:
+            chat_id = os.getenv("TELEGRAM_CHAT_ID")
+            if chat_id:
+                assistant = AIAssistant(db)
+                # We check specifically if THIS new lead has an anniversary today
+                today_mm_dd = datetime.now().strftime("%m-%d")
+                lead_mm_dd = lead.purchase_date[-5:] # Assumes YYYY-MM-DD
+                if lead_mm_dd == today_mm_dd:
+                    await assistant.send_telegram_message(chat_id, f"🎉 Instant Match! The new lead {lead.name} has a property anniversary today. I've updated your briefing.")
+                    await assistant.send_daily_briefing(chat_id)
+
     except Exception as e:
         print(f"Full insert failed, trying fallback: {e}")
         # Fallback to basic columns if the new ones haven't been added to DB yet

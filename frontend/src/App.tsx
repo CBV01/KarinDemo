@@ -138,6 +138,17 @@ const App = () => {
       }
    };
 
+   const handleManualScan = async () => {
+      showToast('Initializing Real-time Anniversary Scan...', 'info');
+      try {
+         const res = await api.get('/assistant/check-anniversaries');
+         setBriefingMsg(res.data.briefing);
+         showToast('Scan complete. Notification sent to Telegram.');
+      } catch (err) {
+         showToast('Scan failed. Check system connection.', 'info');
+      }
+   };
+
    const handleConnectGoogle = async () => {
       try {
          const res = await api.get('/auth/login');
@@ -171,6 +182,14 @@ const App = () => {
                source: 'Manual Entry'
             });
             showToast('Lead entry successfully stabilized in the matrix.');
+         } else if (activeModal === 'RECORD_CLIENT' && modalTab === 'MANUAL') {
+            await api.post('/clients', {
+               full_name: formData.name,
+               phone: formData.phone,
+               email: formData.email,
+               notes: formData.address // Using address field for notes temporarily if needed, or update form
+            });
+            showToast('Client added to the main portfolio database.');
          } else if (activeModal === 'BOOK_APPRAISAL') {
             await api.post('/appraisals/book', {
                address: formData.address,
@@ -475,12 +494,12 @@ const App = () => {
             </div>
             <div className="flex items-center gap-3">
                <button
-                  onClick={() => { setActiveModal('RECORD_LEAD'); setModalTab('IMPORT'); }}
+                  onClick={() => { setActiveModal('RECORD_CLIENT'); setModalTab('IMPORT'); }}
                   className="px-5 py-2.5 bg-white border border-slate-100 text-slate-800 text-[11px] font-bold uppercase tracking-widest rounded-xl hover:bg-slate-50 flex items-center gap-2 shadow-sm">
                   <Upload size={14} /> Database Import
                </button>
                <button
-                  onClick={() => { setActiveModal('RECORD_LEAD'); setModalTab('MANUAL'); }}
+                  onClick={() => { setActiveModal('RECORD_CLIENT'); setModalTab('MANUAL'); }}
                   className="btn-premium px-6"><Plus size={16} /> Record Entry
                </button>
             </div>
@@ -1101,7 +1120,7 @@ const App = () => {
                      <button onClick={closeModals} className="p-3 bg-slate-50 text-slate-300 rounded-xl hover:text-slate-900 transition"><X size={18} /></button>
                   </div>
 
-                  {activeModal === 'RECORD_LEAD' && (
+                  {(activeModal === 'RECORD_LEAD' || activeModal === 'RECORD_CLIENT') && (
                      <div className="px-8 flex gap-8 border-b border-slate-50 shrink-0">
                         <button onClick={() => setModalTab('MANUAL')} className={`pb-3 text-[10px] font-bold uppercase tracking-widest transition-all ${modalTab === 'MANUAL' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-300'}`}>Manual Entry</button>
                         <button onClick={() => setModalTab('IMPORT')} className={`pb-3 text-[10px] font-bold uppercase tracking-widest transition-all ${modalTab === 'IMPORT' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-300'}`}>Database Handshake</button>
@@ -1109,31 +1128,34 @@ const App = () => {
                   )}
 
                   <div className="p-8 pt-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
-                     {activeModal === 'RECORD_LEAD' && modalTab === 'MANUAL' && (
+                     {(activeModal === 'RECORD_LEAD' || activeModal === 'RECORD_CLIENT') && modalTab === 'MANUAL' && (
                         <div className="space-y-6">
-                           <div className="p-4 bg-indigo-50/30 border border-indigo-100/50 rounded-2xl flex items-center gap-4">
-                              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><Users size={20} /></div>
-                              <div><p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Lead Instruction</p><p className="text-[11px] text-slate-500 font-medium">Entering this record will trigger the 3-step AI follow-up (Email ➔ SMS ➔ Call).</p></div>
+                           <div className={`p-4 border rounded-2xl flex items-center gap-4 ${activeModal === 'RECORD_LEAD' ? 'bg-indigo-50/30 border-indigo-100/50' : 'bg-emerald-50/30 border-emerald-100/50'}`}>
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${activeModal === 'RECORD_LEAD' ? 'bg-indigo-600' : 'bg-emerald-600'}`}><Users size={20} /></div>
+                              <div>
+                                 <p className={`text-[10px] font-bold uppercase tracking-widest ${activeModal === 'RECORD_LEAD' ? 'text-indigo-600' : 'text-emerald-600'}`}>{activeModal === 'RECORD_LEAD' ? 'Lead Instruction' : 'Client Instruction'}</p>
+                                 <p className="text-[11px] text-slate-500 font-medium">{activeModal === 'RECORD_LEAD' ? 'Entering this lead will trigger the 3-step AI follow-up.' : 'Creating a client record for your long-term portfolio.'}</p>
+                              </div>
                            </div>
                            <div className="grid grid-cols-2 gap-6">
                               <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Full Name</label><input type="text" placeholder="e.g. John Doe" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} className="input-premium" /></div>
                               <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mobile Stream (NZ +64)</label><input type="text" placeholder="+64 21 000 000" value={formData.phone || ''} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="input-premium" /></div>
                            </div>
-                           <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Property Hub Address</label><input type="text" placeholder="123 Silverdale Road, Rodney..." value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} className="input-premium" /></div>
+                           <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{activeModal === 'RECORD_LEAD' ? 'Property Hub Address' : 'Property Address / Notes'}</label><input type="text" placeholder="123 Silverdale Road, Rodney..." value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} className="input-premium" /></div>
                            <div className="grid grid-cols-2 gap-6">
-                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Purchase Date</label><input type="date" value={formData.purchase_date || ''} onChange={(e) => setFormData({...formData, purchase_date: e.target.value})} className="input-premium" /></div>
+                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{activeModal === 'RECORD_LEAD' ? 'Purchase Date' : 'Settlement Date'}</label><input type="date" value={formData.purchase_date || ''} onChange={(e) => setFormData({...formData, purchase_date: e.target.value})} className="input-premium" /></div>
                               <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Email</label><input type="email" placeholder="client@example.com" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="input-premium" /></div>
                            </div>
                         </div>
                      )}
 
-                     {activeModal === 'RECORD_LEAD' && modalTab === 'IMPORT' && (
+                     {(activeModal === 'RECORD_LEAD' || activeModal === 'RECORD_CLIENT') && modalTab === 'IMPORT' && (
                         <div className="space-y-6">
                            <label className="p-8 border-2 border-dashed border-indigo-100 bg-slate-50/50 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-100/50 transition-all group overflow-hidden">
                               <input type="file" className="hidden" onChange={handleImport} />
                               <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600 mb-4 border border-slate-50 group-hover:scale-110 transition-transform"><Upload size={18} /></div>
                               <div className="space-y-1">
-                                 <h4 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">Automatic Portfolio Sync</h4>
+                                 <h4 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">{activeModal === 'RECORD_LEAD' ? 'Automatic Lead Sync' : 'Automatic Portfolio Sync'}</h4>
                                  <p className="text-[10px] text-slate-400 font-medium max-w-[220px] leading-relaxed">Drag your database file here or <span className="text-indigo-600 font-bold">click to browse</span></p>
                               </div>
                            </label>
