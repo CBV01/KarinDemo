@@ -89,11 +89,10 @@ class AIAssistant:
         """
         context = await self.get_system_context()
         prompt = (
-            "It's 8:30 AM. Write a proactive 'Good morning' briefing for Karin. "
-            "1. CLEARLY summarize today's anniversary counts and lead counts. "
-            "2. EXPLICITLY ask: 'Shall I prepare the anniversary email drafts for your review?' "
-            "3. Mention that she can say 'show drafts' to see them on Telegram before they go out. "
-            "Be professional, friendly, and empowering."
+            "It's 8:30 AM. Write a very brief 'Good morning' briefing for Karin. "
+            "Under 3 sentences: 1. State today's anniversary count and lead count. "
+            "2. If anniversaries exist, ask: 'Shall I prepare the drafts for review?' "
+            "3. If no anniversaries, just ask if she needs anything. Keep it punchy and professional."
         )
         
         msg = await self.groq.get_response(agent_id, prompt, context=context)
