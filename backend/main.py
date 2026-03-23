@@ -1,5 +1,6 @@
 import os
 import uuid
+import httpx # type: ignore
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends # type: ignore
 from pydantic import BaseModel # type: ignore
@@ -81,7 +82,7 @@ async def daily_briefing_task():
                 chat_id = os.getenv("TELEGRAM_CHAT_ID")
                 
                 if db_url and db_token and chat_id:
-                    from libsql_client import create_client
+                    from libsql_client import create_client # type: ignore
                     async with create_client(url=db_url, auth_token=db_token) as db:
                         assistant = AIAssistant(db)
                         # Check if we already sent it today
@@ -143,7 +144,7 @@ async def create_property(prop_data: PropertyCreate, db: Client = Depends(get_db
         client_res = await db.execute("SELECT full_name FROM clients WHERE id = ?", (prop_data.client_id,))
         if client_res.rows:
             client_name = client_res.rows[0][0]
-            from google_auth import GoogleAuthService
+            from google_auth import GoogleAuthService # type: ignore
             auth_service = GoogleAuthService(db)
             await auth_service.create_anniversary_event(client_name, prop_data.address, prop_data.purchase_date)
             
@@ -378,7 +379,7 @@ async def launch_campaign(req: CampaignLaunchRequest, db: Client = Depends(get_d
     leads_res = await db.execute("SELECT name, phone FROM leads")
     leads = [dict(zip(leads_res.columns, row)) for row in leads_res.rows]
     
-    sent_count = 0
+    sent_count: int = 0
     for lead in leads:
         if not lead['phone']: continue
         
@@ -396,6 +397,9 @@ async def launch_campaign(req: CampaignLaunchRequest, db: Client = Depends(get_d
         )
         
     return {"message": f"Campaign launched. Sent {sent_count} {req.template_type}s."}
+
+@app.get("/auth/login")
+async def google_login(db: Client = Depends(get_db)):
     auth_service = GoogleAuthService(db)
     url = auth_service.get_auth_url()
     return {"url": url}

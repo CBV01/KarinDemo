@@ -567,8 +567,8 @@ const App = () => {
                   <div className="h-1 w-full bg-slate-50 rounded-full overflow-hidden mt-2"><div className="h-full w-2/3 bg-indigo-500 rounded-full"></div></div>
                </div>
                <div className="premium-card p-5 bg-white space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potential Appraisals</p>
-                  <h4 className="text-xl font-semibold text-slate-800 tracking-tight">14 Projected for Apr 24</h4>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Portfolio Records</p>
+                  <h4 className="text-xl font-semibold text-slate-800 tracking-tight">{anniversaries.length} Properties Tracked</h4>
                </div>
                <div className="premium-card p-5 border-indigo-600 bg-indigo-600/5 space-y-2">
                   <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest leading-none">AI Insight</p>
