@@ -1091,9 +1091,9 @@ const App = () => {
 
          {/* Premium System Modal Overlay */}
          {activeModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#0F172A]/40 backdrop-blur-sm animate-in fade-in duration-300">
-               <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                  <div className="p-8 pb-4 flex items-center justify-between">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+               <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden animate-in zoom-in-95 duration-200 my-4">
+                  <div className="p-8 pb-4 flex items-center justify-between shrink-0">
                      <div>
                         <h3 className="text-xl font-bold text-slate-900 tracking-tight capitalize leading-none mb-2">{activeModal?.replace('_', ' ')}</h3>
                         <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Karin AI Internal System Hub</p>
@@ -1102,13 +1102,13 @@ const App = () => {
                   </div>
 
                   {activeModal === 'RECORD_LEAD' && (
-                     <div className="px-8 flex gap-8 border-b border-slate-50">
+                     <div className="px-8 flex gap-8 border-b border-slate-50 shrink-0">
                         <button onClick={() => setModalTab('MANUAL')} className={`pb-3 text-[10px] font-bold uppercase tracking-widest transition-all ${modalTab === 'MANUAL' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-300'}`}>Manual Entry</button>
                         <button onClick={() => setModalTab('IMPORT')} className={`pb-3 text-[10px] font-bold uppercase tracking-widest transition-all ${modalTab === 'IMPORT' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-300'}`}>Database Handshake</button>
                      </div>
                   )}
 
-                  <div className="p-8 pt-6 space-y-6">
+                  <div className="p-8 pt-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
                      {activeModal === 'RECORD_LEAD' && modalTab === 'MANUAL' && (
                         <div className="space-y-6">
                            <div className="p-4 bg-indigo-50/30 border border-indigo-100/50 rounded-2xl flex items-center gap-4">
@@ -1254,14 +1254,15 @@ const App = () => {
                         </div>
                      )}
 
-                     <div className="pt-4 flex items-center gap-3">
-                        <button onClick={closeModals} className="flex-1 py-3.5 bg-slate-50 text-slate-400 font-bold text-[11px] uppercase tracking-widest rounded-xl hover:bg-slate-100 transition active:scale-95">Cancel</button>
-                        <button
-                           onClick={handleExecuteProtocol}
-                           className="flex-[2] py-3.5 bg-indigo-600 text-white font-bold text-[11px] uppercase tracking-widest rounded-xl shadow-xl shadow-indigo-100 hover:bg-slate-900 transition active:scale-95 flex items-center justify-center gap-2">
-                           <Send size={14} /> Execute Protocol
-                        </button>
-                     </div>
+                  </div>
+
+                  <div className="px-8 pb-8 flex items-center gap-3 shrink-0">
+                     <button onClick={closeModals} className="flex-1 py-3.5 bg-slate-50 text-slate-400 font-bold text-[11px] uppercase tracking-widest rounded-xl hover:bg-slate-100 transition active:scale-95">Cancel</button>
+                     <button
+                        onClick={handleExecuteProtocol}
+                        className="flex-[2] py-3.5 bg-indigo-600 text-white font-bold text-[11px] uppercase tracking-widest rounded-xl shadow-xl shadow-indigo-100 hover:bg-slate-900 transition active:scale-95 flex items-center justify-center gap-2">
+                        <Send size={14} /> Execute Protocol
+                     </button>
                   </div>
                </div>
             </div>
