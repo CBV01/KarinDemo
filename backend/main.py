@@ -379,7 +379,7 @@ async def launch_campaign(req: CampaignLaunchRequest, db: Client = Depends(get_d
     leads_res = await db.execute("SELECT name, phone FROM leads")
     leads = [dict(zip(leads_res.columns, row)) for row in leads_res.rows]
     
-    sent_count: int = 0
+    success_log = []
     for lead in leads:
         if not lead['phone']: continue
         
@@ -388,7 +388,8 @@ async def launch_campaign(req: CampaignLaunchRequest, db: Client = Depends(get_d
         
         if req.template_type == 'sms':
             success = await sms_service.send_sms(lead['phone'], msg)
-            if success: sent_count += 1
+            if success:
+                success_log.append(True)
             
         # Log interaction
         await db.execute(
@@ -396,7 +397,7 @@ async def launch_campaign(req: CampaignLaunchRequest, db: Client = Depends(get_d
             (str(uuid.uuid4()), "system", req.template_type, "outbound", msg)
         )
         
-    return {"message": f"Campaign launched. Sent {sent_count} {req.template_type}s."}
+    return {"message": f"Campaign launched. Sent {len(success_log)} {req.template_type}s."}
 
 @app.get("/auth/login")
 async def google_login(db: Client = Depends(get_db)):
