@@ -325,7 +325,16 @@ const App = () => {
                         <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span> Sync Active
                      </p>
                   </div>
-                  <div className="w-11 h-11 bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-400 shadow-xl shadow-slate-200 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all"><Smartphone size={20} strokeWidth={2.5} /></div>
+                  <div className="flex items-center gap-3">
+                     <button 
+                        onClick={handleManualScan}
+                        className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all group/scan"
+                        title="Scan for Anniversaries Now"
+                     >
+                        <Target size={18} className="group-hover/scan:rotate-180 transition-transform duration-500" />
+                     </button>
+                     <div className="w-11 h-11 bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-400 shadow-xl shadow-slate-200 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all"><Smartphone size={20} strokeWidth={2.5} /></div>
+                  </div>
                </div>
                <div className="flex-1 p-8 pt-6 space-y-6 relative z-10 no-scrollbar overflow-y-auto">
                   <div className="italic text-[13px] text-slate-500 font-medium leading-[2.1] whitespace-pre-wrap border-l-4 border-indigo-100 pl-6 py-2 bg-slate-50/30 rounded-r-2xl max-h-[140px] overflow-y-auto custom-scrollbar">

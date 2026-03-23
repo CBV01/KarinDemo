@@ -258,8 +258,8 @@ class AIAssistant:
             {
                 "type": "function",
                 "function": {
-                    "name": "get_anniversaries",
-                    "description": "Checks for property purchase anniversaries for today.",
+                    "name": "scan_for_anniversaries",
+                    "description": "Manually triggers a scan of the database to find property anniversaries for today and sends a briefing.",
                     "parameters": {"type": "object", "properties": {}}
                 }
             }
@@ -296,17 +296,13 @@ class AIAssistant:
                     await self.db.execute(sql, (lid, args['name'], args.get('phone', ''), args.get('email', ''), args.get('intent', 'buyer'), channel))
                     results.append(f"✅ Added lead: {args['name']}")
 
-                elif func_name == "get_anniversaries":
-                    today_mm_dd = datetime.now().strftime("%m-%d")
-                    sql = """
-                        SELECT p.address, c.full_name 
-                        FROM properties p 
-                        JOIN clients c ON p.client_id = c.id 
-                        WHERE strftime('%m-%d', p.purchase_date) = ?
-                    """
-                    res = await self.db.execute(sql, (today_mm_dd,))
-                    anniversaries = [f"{row[1]} at {row[0]}" for row in res.rows]
-                    results.append(f"TODAY'S ANNIVERSARIES: {', '.join(anniversaries)}" if anniversaries else "No anniversaries today.")
+                elif func_name == "scan_for_anniversaries":
+                    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+                    if chat_id:
+                        await self.send_daily_briefing(chat_id)
+                        results.append("✅ Manual anniversary scan triggered and sent to Telegram.")
+                    else:
+                        results.append("❌ Could not trigger scan: TELEGRAM_CHAT_ID missing.")
 
                 elif func_name == "fetch_database_summary":
                     client_count = (await self.db.execute("SELECT COUNT(*) FROM clients")).rows[0][0]
