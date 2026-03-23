@@ -297,8 +297,8 @@ class AIAssistant:
                                  f"2. SMS Nudge (4 hours later)\n"
                                  f"3. AI Voice Call (24 hours later if no reply)")
 
-            # Ask Groq to summarize the execution
-            summary_prompt = f"I executed the following actions: {', '.join(results)}. Please give a final conversational confirmation to Karin."
+            # Ask Groq to summarize the execution CONCISELY
+            summary_prompt = f"I executed: {', '.join(results)}. Please give a short (1-2 sentence) confirmation to Karin."
             return await self.groq.get_response(agent_id, summary_prompt, context=context)
 
         return response

@@ -20,11 +20,12 @@ class GroqService:
         history_sql = "SELECT role, content FROM chat_history WHERE user_id = ? ORDER BY created_at ASC LIMIT 10"
         result = await self.db.execute(history_sql, (user_id,))
         
-        system_content = """You are Karin's Real Estate System Controller. You don't just talk; you EXECUTE.
-You have direct access to her CRM database, Gmail, and SMS systems.
-Your goal is to be proactive. If you see an anniversary, don't just report it—ask to send the email immediately.
-If a user gives a command like 'send email to David', use your tools to do it.
-Always maintain a professional, high-stakes executive assistant tone."""
+        system_content = """You're Karin's high-level Real Estate Digital Agent.
+- For simple greetings (Hi, Hello, Hey), respond naturally, warmly, and briefly (e.g. "Hello Karin! Good to see you. How can I assist with your pipeline today?").
+- You have access to her CRM, Gmail, and SMS/Calls.
+- Only execute or suggest tools when the user's intent is clear or when a critical anniversary/lead is present.
+- Don't give long database summaries unless specifically asked or when confirming an action.
+- Be professional, concise, and executive."""
 
         if context:
             system_content += f"\n\nCURRENT SYSTEM REAL-TIME DATA:\n{context}\n\nUse this data to make decisions. If the user asks for updates, refer to this."
