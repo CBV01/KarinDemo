@@ -190,13 +190,22 @@ async def get_interactions(db: Client = Depends(get_db)):
 @app.post("/leads")
 async def create_lead(lead: LeadCreate, db: Client = Depends(get_db)):
     lead_id = str(uuid.uuid4())
-    sql = """
-        INSERT INTO leads (id, name, phone, email, intent, source, property_address, purchase_date, budget) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source, lead.property_address, lead.purchase_date, lead.budget)
     try:
+        # We use a try-except block for each potential missing column or a fallback query
+        sql = """
+            INSERT INTO leads (id, name, phone, email, intent, source, property_address, purchase_date, budget) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source, lead.property_address, lead.purchase_date, lead.budget)
         await db.execute(sql, params)
+    except Exception as e:
+        print(f"Full insert failed, trying fallback: {e}")
+        # Fallback to basic columns if the new ones haven't been added to DB yet
+        sql_fallback = "INSERT INTO leads (id, name, phone, email, intent, source) VALUES (?, ?, ?, ?, ?, ?)"
+        params_fallback = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source)
+        await db.execute(sql_fallback, params_fallback)
+
+    try:
         # Log automation start
         await db.execute("INSERT INTO interaction_logs (id, channel, direction, content) VALUES (?, ?, ?, ?)",
                          (str(uuid.uuid4()), "system", "outbound", f"Automation sequence initialized for {lead.name}"))

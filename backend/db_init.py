@@ -52,6 +52,9 @@ def init_db():
             intent TEXT, -- 'buyer', 'seller'
             notes TEXT,
             source TEXT, -- 'inbound_call', 'website', 'manual'
+            property_address TEXT,
+            purchase_date TEXT,
+            budget TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """,

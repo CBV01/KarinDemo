@@ -12,7 +12,7 @@ class GroqService:
         else:
             self.client = None
 
-    async def get_response(self, user_id: str, message: str, context: str = "") -> str:
+    async def get_response(self, user_id: str, message: str, context: str = "", tools: List[Dict] = None) -> str:
         if not self.client:
             return "❌ Groq brain error: GROQ_API_KEY is missing in HF Secrets!"
 
@@ -20,9 +20,14 @@ class GroqService:
         history_sql = "SELECT role, content FROM chat_history WHERE user_id = ? ORDER BY created_at ASC LIMIT 10"
         result = await self.db.execute(history_sql, (user_id,))
         
-        system_content = "You are Karin's Real Estate AI Assistant. Help her manage leads, anniversaries, and campaigns. Keep it professional but friendly."
+        system_content = """You are Karin's Real Estate System Controller. You don't just talk; you EXECUTE.
+You have direct access to her CRM database, Gmail, and SMS systems.
+Your goal is to be proactive. If you see an anniversary, don't just report it—ask to send the email immediately.
+If a user gives a command like 'send email to David', use your tools to do it.
+Always maintain a professional, high-stakes executive assistant tone."""
+
         if context:
-            system_content += f"\n\nCURRENT SYSTEM CONTEXT:\n{context}\n\nUse this context to answer naturally. If there are anniversaries or leads, mention them as if you already know about them."
+            system_content += f"\n\nCURRENT SYSTEM REAL-TIME DATA:\n{context}\n\nUse this data to make decisions. If the user asks for updates, refer to this."
             
         messages = [{"role": "system", "content": system_content}]
         
@@ -32,17 +37,25 @@ class GroqService:
         messages.append({"role": "user", "content": message})
 
         try:
-            # 2. Call Groq API
+            # 2. Call Groq API with Tool Support
             completion = self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages,
+                tools=tools,
+                tool_choice="auto",
                 temperature=0,
                 max_tokens=1024,
                 top_p=1,
                 stream=False,
             )
             
-            ai_reply = completion.choices[0].message.content
+            response_message = completion.choices[0].message
+            
+            # Handle Tool Calls if any
+            if response_message.tool_calls:
+                return response_message # Return the full message object to be handled by Assistant
+            
+            ai_reply = response_message.content
             
             # 3. Save to History
             await self.save_message(user_id, "user", message)

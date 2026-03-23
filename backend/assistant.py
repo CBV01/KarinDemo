@@ -5,8 +5,11 @@ import logging
 import os
 from datetime import datetime
 from uuid import uuid4
+from typing import List, Optional, cast
 from libsql_client import Client # type: ignore
 from groq_service import GroqService # type: ignore
+from google_auth import GoogleAuthService # type: ignore
+from sms_service import SmsService # type: ignore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -81,19 +84,27 @@ class AIAssistant:
 
     async def send_daily_briefing(self, agent_id: str = "karen"):
         """
-        Gathers today's anniversaries and "Hot Leads" to send to the agent via Groq for natural language.
+        Gathers today's anniversaries and "Hot Leads" to send to the agent.
+        Now specifically asks for review before sending.
         """
         context = await self.get_system_context()
-        prompt = "It's 8:30 AM. Write a proactive 'Good morning' briefing for Karin. Summarize today's anniversaries and any new leads from the last 24h. Be professional, friendly, and ask if she wants you to handle anything (like sending anniversary letters)."
+        prompt = (
+            "It's 8:30 AM. Write a proactive 'Good morning' briefing for Karin. "
+            "1. CLEARLY summarize today's anniversary counts and lead counts. "
+            "2. EXPLICITLY ask: 'Shall I prepare the anniversary email drafts for your review?' "
+            "3. Mention that she can say 'show drafts' to see them on Telegram before they go out. "
+            "Be professional, friendly, and empowering."
+        )
         
         msg = await self.groq.get_response(agent_id, prompt, context=context)
         
         # Log the outbound interaction
         await self.log_interaction(agent_id, "telegram", "outbound", msg)
         
-        # Send to Telegram if agent_id looks like a chat_id
-        if agent_id.isdigit():
-            await self.send_telegram_message(agent_id, msg)
+        # Send to Telegram
+        if agent_id.isdigit() or os.getenv("TELEGRAM_CHAT_ID"):
+            target_id = agent_id if agent_id.isdigit() else os.getenv("TELEGRAM_CHAT_ID", "")
+            await self.send_telegram_message(target_id, msg)
         
         logger.info(f"Notification sent to Agent {agent_id} via Telegram:\n{msg}")
         return msg
@@ -105,8 +116,8 @@ class AIAssistant:
         import ssl
         
         token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if not token:
-            logger.error("TELEGRAM_BOT_TOKEN not set")
+        if not token or not chat_id:
+            logger.error(f"TELEGRAM_BOT_TOKEN or chat_id missing. chat_id: {chat_id}")
             return
             
         payload = json.dumps({"chat_id": chat_id, "text": text}).encode('utf-8')
@@ -181,60 +192,122 @@ class AIAssistant:
 
     async def handle_agent_reply(self, agent_id: str, content: str, channel: str = "telegram"):
         """
-        Handles incoming WhatsApp/Telegram message from the agent (Karin).
-        Parses commands and returns a natural language response.
+        Handles incoming message from the agent.
+        Uses Groq Tooling to execute actual system actions.
         """
         content_lower = content.strip().lower()
-        
-        # Log the inbound interaction
         await self.log_interaction(agent_id, channel, "inbound", content)
 
-        # 1. Handle "Add Lead" command (Still hardcoded for precision)
-        if content_lower.startswith("add lead:"):
-            try:
-                _, details = content.split(":", 1)
-                parts = [p.strip() for p in details.split(",")]
-                name = parts[0]
-                phone = parts[1] if len(parts) > 1 else ""
-                intent = parts[2] if len(parts) > 2 else "buyer"
-                
-                sql = "INSERT INTO leads (id, name, phone, intent, source) VALUES (?, ?, ?, ?, ?)"
-                await self.db.execute(sql, (str(uuid4()), name, phone, intent, channel))
-                return f"✅ Done! Added lead '{name}' to your dashboard."
-            except Exception as e:
-                return "❌ Sorry, I couldn't parse that. Try: 'Add lead: John Doe, 555-0123, seller'"
+        # Define tools for Groq to use
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "send_email",
+                    "description": "Sends an email to a client via Gmail.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "to": {"type": "string", "description": "Recipient email address"},
+                            "subject": {"type": "string", "description": "Email subject"},
+                            "body": {"type": "string", "description": "Email content"}
+                        },
+                        "required": ["to", "subject", "body"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "send_sms",
+                    "description": "Sends an SMS message via Twilio.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "to": {"type": "string", "description": "Recipient phone number"},
+                            "message": {"type": "string", "description": "SMS content"}
+                        },
+                        "required": ["to", "message"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "fetch_database_summary",
+                    "description": "Gets current counts of leads and clients.",
+                    "parameters": {"type": "object", "properties": {}}
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "draft_anniversary_emails",
+                    "description": "Prepares and shows drafts for today's property anniversaries.",
+                    "parameters": {"type": "object", "properties": {}}
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "show_follow_up_sequence",
+                    "description": "Shows the Email -> SMS -> Call sequence for a specific lead.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the lead"}
+                        },
+                        "required": ["name"]
+                    }
+                }
+            }
+        ]
 
-        # 2. Handle "send messages" for anniversaries (the interactive flow)
-        if "send" in content_lower and ("message" in content_lower or "email" in content_lower or "anniversaries" in content_lower):
-            context = await self.get_system_context()
-            if "TODAY'S ANNIVERSARIES: None" in context:
-                return "You're all caught up! There are no property anniversaries to send messages for today. 🏠✅"
-            
-            prompt = "The user wants to send anniversary messages. Based on the today's anniversaries in the context, write a personalized email for EACH one. Keep them professional but warm. Present them clearly so I can ask for confirmation. Use [Name] and [Address] tags."
-            return await self.groq.get_response(agent_id, prompt, context=context)
-
-        # 3. Handle "confirm" / "send them" / "go ahead"
-        if any(word in content_lower for word in ["confirm", "send them", "go ahead", "send all", "yes send"]):
-            return await self.execute_anniversary_emails(agent_id)
-
-        # 4. Handle "updates" / "responses"
-        if "update" in content_lower or "response" in content_lower or "reply" in content_lower:
-            return await self.check_email_responses(agent_id)
-
-        # 5. Conversational Logic via Groq with System Context
         context = await self.get_system_context()
         
-        # If it's a greeting or start command, inject a welcome prompt
-        if content_lower in ["hello", "hi", "hey", "/start", "start"]:
-            prompt = f"The user said '{content}'. Introduce yourself as Karin's AI Personal Assistant. Mention that you're ready to help manage her real estate business. Based on the context provided, give her a quick summary of what's happening today (anniversaries/leads) and ask what she'd like to do."
-            return await self.groq.get_response(agent_id, prompt, context=context)
+        # Call Groq
+        response = await self.groq.get_response(agent_id, content, context=context, tools=tools)
 
-        # Default: Let Groq handle it with the current context
-        return await self.groq.get_response(agent_id, content, context=context)
+        # Check if Groq wants to call a tool
+        tool_calls = getattr(response, 'tool_calls', None)
+        if tool_calls:
+            results: List[str] = []
+            for tool_call in tool_calls:
+                func_name = tool_call.function.name
+                args = json.loads(tool_call.function.arguments)
+                
+                if func_name == "send_email":
+                    google = GoogleAuthService(self.db)
+                    tid = await google.send_email(args['to'], args['subject'], args['body'])
+                    results.append(f"✅ Email sent to {args['to']} (ID: {tid})")
+                    await self.log_interaction(agent_id, "email", "outbound", args['body'], metadata=json.dumps({"thread_id": tid}))
+                
+                elif func_name == "send_sms":
+                    sms = SmsService()
+                    success = await sms.send_sms(args['to'], args['message'])
+                    results.append(f"✅ SMS sent to {args['to']}" if success else "❌ SMS failed")
+                    await self.log_interaction(agent_id, "sms", "outbound", args['message'])
+                
+                elif func_name == "draft_anniversary_emails":
+                    draft_content = await self.execute_anniversary_emails(agent_id, dry_run=True)
+                    results.append(f"📄 Drafted Anniversary Emails:\n\n{draft_content}")
 
-    async def execute_anniversary_emails(self, agent_id: str):
+                elif func_name == "show_follow_up_sequence":
+                    results.append(f"⏱️ Sequence for {args['name']}:\n"
+                                 f"1. Email (Personalized Anniversary Brief)\n"
+                                 f"2. SMS Nudge (4 hours later)\n"
+                                 f"3. AI Voice Call (24 hours later if no reply)")
+
+            # Ask Groq to summarize the execution
+            summary_prompt = f"I executed the following actions: {', '.join(results)}. Please give a final conversational confirmation to Karin."
+            return await self.groq.get_response(agent_id, summary_prompt, context=context)
+
+        return response
+
+    async def execute_anniversary_emails(self, agent_id: str, dry_run: bool = False):
         """
-        Actually sends the emails for today's anniversaries.
+        Sends or drafts the emails for today's anniversaries.
+        If dry_run=True, it returns the content as a string for review.
         """
         try:
             today_mm_dd = datetime.now().strftime("%m-%d")
@@ -248,31 +321,35 @@ class AIAssistant:
             anniversaries = [dict(zip(res.columns, row)) for row in res.rows]
             
             if not anniversaries:
-                return "No anniversaries found to send."
+                return "No anniversaries found for today."
 
-            from google_auth import GoogleAuthService # type: ignore
             google = GoogleAuthService(self.db)
             
+            drafts: List[str] = []
             sent_count = 0
             for a in anniversaries:
-                if not a['email']: continue
+                if not a['email'] and not dry_run: continue
                 
-                # Use Groq to generate a highly personalized body for this specific anniversary
-                prompt = f"Write a short, warm anniversary email for {a['full_name']} who bought the property at {a['address']} exactly some years ago today. Keep it under 3 sentences. No placeholders like [Name], use the real names."
+                # Use Groq to generate a highly personalized body
+                prompt = f"Write a short, warm anniversary email for {a['full_name']} who bought the property at {a['address']} exactly some years ago today. Keep it under 3 sentences. No placeholders."
                 body = await self.groq.get_response("system", prompt)
                 subject = f"Happy Anniversary! 🏠 {a['address']}"
                 
-                thread_id = await google.send_email(a['email'], subject, body)
-                
-                # Log it with the thread_id for tracking
-                metadata = json.dumps({"thread_id": thread_id, "type": "anniversary_email", "recipient": a['email']})
-                await self.log_interaction(agent_id, "email", "outbound", body, metadata=metadata)
-                sent_count += 1
+                if dry_run:
+                    drafts.append(f"To: {a['full_name']} ({a['email'] or 'No Email'})\nSubject: {subject}\nBody: {body}\n---")
+                else:
+                    thread_id = await google.send_email(a['email'], subject, body)
+                    metadata = json.dumps({"thread_id": thread_id, "type": "anniversary_email", "recipient": a['email']})
+                    await self.log_interaction(agent_id, "email", "outbound", body, metadata=metadata)
+                    sent_count += 1
             
-            return f"🚀 Done! I've sent out {sent_count} personalized anniversary emails. I'll monitor for any replies and let you know! ✅"
+            if dry_run:
+                return "\n\n".join(drafts)
+            
+            return f"🚀 Done! I've sent out {sent_count} personalized anniversary emails. I'll monitor for any replies! ✅"
         except Exception as e:
-            logger.error(f"Error sending anniversary emails: {e}")
-            return f"❌ Failed to send emails: {str(e)}. Make sure your Google account is connected in Settings!"
+            logger.error(f"Error handling anniversary emails: {e}")
+            return f"❌ Failed to process emails: {str(e)}."
 
     async def check_email_responses(self, agent_id: str):
         """
@@ -283,10 +360,9 @@ class AIAssistant:
             sql = "SELECT content, metadata FROM interaction_logs WHERE channel = 'email' AND direction = 'outbound' ORDER BY created_at DESC LIMIT 10"
             res = await self.db.execute(sql)
             
-            from google_auth import GoogleAuthService # type: ignore
             google = GoogleAuthService(self.db)
             
-            updates = []
+            updates: List[str] = []
             for row in res.rows:
                 metadata = json.loads(row[1]) if row[1] else {}
                 thread_id = metadata.get("thread_id")
