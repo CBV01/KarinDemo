@@ -225,11 +225,16 @@ async def create_lead(lead: LeadCreate, db: Client = Depends(get_db)):
                     await assistant.send_daily_briefing(chat_id)
 
     except Exception as e:
-        print(f"Full insert failed, trying fallback: {e}")
-        # Fallback to basic columns if the new ones haven't been added to DB yet
-        sql_fallback = "INSERT INTO leads (id, name, phone, email, intent, source) VALUES (?, ?, ?, ?, ?, ?)"
-        params_fallback = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source)
-        await db.execute(sql_fallback, params_fallback)
+        print(f"Full insert failed, using adaptive fallback: {e}")
+        # Try a more limited insert but preserve the date and address if possible
+        try:
+            sql_alt = "INSERT INTO leads (id, name, phone, email, intent, source, purchase_date, property_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            await db.execute(sql_alt, (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source, lead.purchase_date, lead.property_address))
+        except Exception as e_alt:
+            print(f"Adaptive fallback also failed, using final fallback: {e_alt}")
+            sql_fallback = "INSERT INTO leads (id, name, phone, email, intent, source) VALUES (?, ?, ?, ?, ?, ?)"
+            params_fallback = (lead_id, lead.name, lead.phone, lead.email, lead.intent, lead.source)
+            await db.execute(sql_fallback, params_fallback)
 
     try:
         # Log automation start

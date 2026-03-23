@@ -143,6 +143,7 @@ const App = () => {
       try {
          const res = await api.get('/assistant/check-anniversaries');
          setBriefingMsg(res.data.briefing);
+         await fetchData(); // Refresh counts and calendar
          showToast('Scan complete. Notification sent to Telegram.');
       } catch (err) {
          showToast('Scan failed. Check system connection.', 'info');
@@ -183,12 +184,21 @@ const App = () => {
             });
             showToast('Lead entry successfully stabilized in the matrix.');
          } else if (activeModal === 'RECORD_CLIENT' && modalTab === 'MANUAL') {
-            await api.post('/clients', {
+            const clientRes = await api.post('/clients', {
                full_name: formData.name,
                phone: formData.phone,
                email: formData.email,
-               notes: formData.address // Using address field for notes temporarily if needed, or update form
+               notes: formData.address 
             });
+            
+            // If address/date provided, also add property to trigger anniversaries
+            if (formData.address && formData.purchase_date) {
+               await api.post('/properties', {
+                  client_id: clientRes.data.id,
+                  address: formData.address,
+                  purchase_date: formData.purchase_date
+               });
+            }
             showToast('Client added to the main portfolio database.');
          } else if (activeModal === 'BOOK_APPRAISAL') {
             await api.post('/appraisals/book', {
