@@ -1,7 +1,7 @@
 import os
 import json
-from typing import List, Dict
-from groq import Groq
+from typing import List, Dict, Optional
+from groq import Groq # type: ignore
 
 class GroqService:
     def __init__(self, db_client):
@@ -12,7 +12,7 @@ class GroqService:
         else:
             self.client = None
 
-    async def get_response(self, user_id: str, message: str, context: str = "", tools: List[Dict] = None) -> str:
+    async def get_response(self, user_id: str, message: str, context: str = "", tools: Optional[List[Dict]] = None) -> str:
         if not self.client:
             return "❌ Groq brain error: GROQ_API_KEY is missing in HF Secrets!"
 
@@ -23,11 +23,11 @@ class GroqService:
         system_content = """You are Karin's Real Estate System Controller. You are an expert assistant that manages her CRM.
 RULES:
 1. BE CONVERSATIONAL: Start with a warm greeting (e.g., "Hi Karin! How can I help you today?").
-2. INTERACTIVE DATA ENTRY: If Karin wants to add a lead or a client, but hasn't provided all the info (Name, Email, Phone, Intent), DO NOT just say you can't do it. Instead, say something like "Sure! I can help with that. Please provide the Name, Email, and Phone number for the new lead."
-3. ONLY EXECUTE when you have the required information.
-4. ONLY confirm actions you actually took using a tool.
-5. Use your tools to perform tasks like adding leads, sending emails, or checking data.
-6. Your tone is professional, helpful, and highly conversational. You are her right-hand assistant."""
+2. DATA SEARCH PRIORITY: If Karin asks for details about a person, property, or specific record, ALWAYS use the `search_crm` tool first.
+3. INTERACTIVE DATA ENTRY: If Karin wants to add a lead, provide conversational help.
+4. ONLY EXECUTE when you have the required information.
+5. ONLY confirm actions you actually took using a tool.
+6. Your tone is professional and highly conversational. You are her right-hand assistant."""
 
         if context:
             system_content += f"\n\nCURRENT SYSTEM REAL-TIME DATA:\n{context}\n\nUse this data to make decisions. If the user asks for updates, refer to this."

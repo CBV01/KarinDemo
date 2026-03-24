@@ -327,7 +327,7 @@ const App = () => {
                </div>
             </div>
 
-            <div className="premium-card p-0 flex flex-col relative overflow-hidden bg-white border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] group transition-all hover:border-indigo-200">
+            <div className="premium-card p-0 flex flex-col h-[400px] relative overflow-hidden bg-white border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] group transition-all hover:border-indigo-200">
                <div className="p-8 pb-4 border-b border-slate-50 flex items-center justify-between">
                   <div>
                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest leading-none mb-1.5">Strategic Briefing</h3>
@@ -1156,14 +1156,44 @@ const App = () => {
                                  <p className="text-[11px] text-slate-500 font-medium">{activeModal === 'RECORD_LEAD' ? 'Entering this lead will trigger the 3-step AI follow-up.' : 'Creating a client record for your long-term portfolio.'}</p>
                               </div>
                            </div>
-                           <div className="grid grid-cols-2 gap-6">
-                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Full Name</label><input type="text" placeholder="e.g. John Doe" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} className="input-premium" /></div>
-                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mobile Stream (NZ +64)</label><input type="text" placeholder="+64 21 000 000" value={formData.phone || ''} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="input-premium" /></div>
+                           <div className="grid grid-cols-2 gap-6 pt-2">
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Name</label>
+                                 <input type="text" placeholder="John Doe" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} className="input-premium" />
+                              </div>
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Budget Hub</label>
+                                 <input type="text" placeholder="$900k - $1.2M" value={formData.budget || ''} onChange={(e) => setFormData({...formData, budget: e.target.value})} className="input-premium" />
+                              </div>
                            </div>
-                           <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{activeModal === 'RECORD_LEAD' ? 'Property Hub Address' : 'Property Address / Notes'}</label><input type="text" placeholder="123 Silverdale Road, Rodney..." value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} className="input-premium" /></div>
                            <div className="grid grid-cols-2 gap-6">
-                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{activeModal === 'RECORD_LEAD' ? 'Purchase Date' : 'Settlement Date'}</label><input type="date" value={formData.purchase_date || ''} onChange={(e) => setFormData({...formData, purchase_date: e.target.value})} className="input-premium" /></div>
-                              <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Email</label><input type="email" placeholder="client@example.com" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="input-premium" /></div>
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mobile Stream (+64)</label>
+                                 <input type="text" placeholder="+64 21 000 000" value={formData.phone || ''} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="input-premium" />
+                              </div>
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Client Intent</label>
+                                 <select value={formData.intent || 'seller'} onChange={(e) => setFormData({...formData, intent: e.target.value})} className="input-premium">
+                                    <option value="seller">Seller</option>
+                                    <option value="buyer">Buyer</option>
+                                    <option value="investor">Investor</option>
+                                    <option value="renter">Renter</option>
+                                 </select>
+                              </div>
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Property Hub Address</label>
+                              <input type="text" placeholder="123 Silverdale Road, Rodney..." value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} className="input-premium" />
+                           </div>
+                           <div className="grid grid-cols-2 gap-6 pb-4">
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Action Notes / Intel</label>
+                                 <textarea rows={1} placeholder="Notes..." value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} className="input-premium py-3 resize-none h-11" />
+                               </div>
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{activeModal === 'RECORD_LEAD' ? 'Key Date' : 'Settlement'}</label>
+                                 <input type="date" value={formData.purchase_date || ''} onChange={(e) => setFormData({...formData, purchase_date: e.target.value})} className="input-premium" />
+                              </div>
                            </div>
                         </div>
                      )}

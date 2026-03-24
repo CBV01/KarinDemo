@@ -253,7 +253,7 @@ class AIAssistant:
                             "name": {"type": "string", "description": "Full name of the lead"},
                             "phone": {"type": "string", "description": "Phone number"},
                             "email": {"type": "string", "description": "Email address"},
-                            "intent": {"type": "string", "enum": ["buyer", "seller"], "description": "Whether they are a buyer or seller"}
+                            "intent": {"type": "string", "enum": ["buyer", "seller", "investor", "renter"], "description": "Client category"}
                         },
                         "required": ["name"]
                     }
@@ -273,6 +273,20 @@ class AIAssistant:
                     "name": "scan_for_anniversaries",
                     "description": "Manually triggers a scan of the database to find property anniversaries for today and sends a briefing.",
                     "parameters": {"type": "object", "properties": {}}
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_crm",
+                    "description": "Searches for a specific person in the leads or clients database to find their details or anniversary.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the person to search for"}
+                        },
+                        "required": ["name"]
+                    }
                 }
             }
         ]
@@ -320,6 +334,19 @@ class AIAssistant:
                     client_count = (await self.db.execute("SELECT COUNT(*) FROM clients")).rows[0][0]
                     lead_count = (await self.db.execute("SELECT COUNT(*) FROM leads")).rows[0][0]
                     results.append(f"Database Summary: {client_count} Clients, {lead_count} Leads.")
+
+                elif func_name == "search_crm":
+                    search_term = f"%{args['name']}%"
+                    # Search Leads
+                    leads_res = await self.db.execute("SELECT name, phone, email, intent, purchase_date, property_address FROM leads WHERE name LIKE ?", (search_term,))
+                    # Search Clients
+                    clients_res = await self.db.execute("SELECT full_name, phone, email, notes FROM clients WHERE full_name LIKE ?", (search_term,))
+                    
+                    found = []
+                    for r in leads_res.rows: found.append(f"Lead: {r[0]} | Phone: {r[1]} | Email: {r[2]} | Intent: {r[3]} | Property: {r[5]} | Purchased: {r[4]}")
+                    for r in clients_res.rows: found.append(f"Client: {r[0]} | Phone: {r[1]} | Email: {r[2]} | Notes: {r[3]}")
+                    
+                    results.append("\n".join(found) if found else f"No records found for '{args['name']}'.")
 
             # Ask Groq to summarize the execution
             summary_prompt = f"I executed: {', '.join(results)}. Please give a final conversational confirmation to Karin. IF IT WAS A GREETING ONLY, IGNORE THE SUMMARY AND JUST BE POLITE."
