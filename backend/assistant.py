@@ -187,9 +187,11 @@ class AIAssistant:
             client_count_res = await self.db.execute("SELECT COUNT(*) FROM clients")
             lead_count_res = await self.db.execute("SELECT COUNT(*) FROM leads")
             
-            context = f"Current date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-            context += f"Total Clients in Database: {client_count_res.rows[0][0]}\n"
-            context += f"Total Leads in Pipeline: {lead_count_res.rows[0][0]}\n"
+            # STRATEGIC PROTOCOL PREAMBLE:
+            context = f"CURRENT DATE: {datetime.now().strftime('%Y-%m-%d')}\n"
+            context += "STRATEGY: Database Reactivation & Past Client Nurturing.\n"
+            context += f"Portfolio (Past Clients): {client_count_res.rows[0][0]} records.\n"
+            context += f"Nurture Stream (Active Pipeline): {lead_count_res.rows[0][0]} records.\n"
             
             if anniversaries:
                 context += f"TODAY'S ANNIVERSARIES: {', '.join(anniversaries)}\n"
@@ -467,7 +469,10 @@ class AIAssistant:
                     prop_sql = "INSERT INTO properties (client_id, address, purchase_date) VALUES (?, ?, ?)"
                     await self.db.execute(prop_sql, (client_id, addr, p_date))
                     
-                    # 3. Google Calendar Sync
+                    # 3. Clean up Leads (Pipeline Archive)
+                    await self.db.execute("DELETE FROM leads WHERE name = ?", (name,))
+                    
+                    # 4. Google Calendar Sync
                     google = GoogleAuthService(self.db)
                     synced = await google.create_anniversary_event(name, addr, p_date)
                     
@@ -527,7 +532,7 @@ class AIAssistant:
         Scans for property anniversaries within the next N days (default 7).
         """
         try:
-            results = []
+            anniv_findings: List[str] = []
             for i in range(scan_days):
                 target_date = (datetime.now() + timedelta(days=i)).strftime("%m-%d")
                 sql = """
@@ -541,12 +546,12 @@ class AIAssistant:
                 
                 if rows:
                     date_str = (datetime.now() + timedelta(days=i)).strftime("%B %d")
-                    results.append(f"📅 {date_str}: {', '.join([r['full_name'] for r in rows])}")
+                    anniv_findings.append(f"📅 {date_str}: {', '.join([r['full_name'] for r in rows])}")
             
-            if not results:
+            if not anniv_findings:
                 return "No anniversaries found for the next 7 days."
             
-            return "Upcoming Anniversaries:\n" + "\n".join(results)
+            return "Upcoming Anniversaries:\n" + "\n".join(anniv_findings)
         except Exception as e:
             logger.error(f"Error scanning anniversaries: {e}")
             return f"❌ Failed to scan anniversaries: {str(e)}."

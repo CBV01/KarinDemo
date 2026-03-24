@@ -223,10 +223,13 @@ async def create_lead(lead: LeadCreate, db: Client = Depends(get_db)):
                 assistant = AIAssistant(db)
                 # We check specifically if THIS new lead has an anniversary today
                 today_mm_dd = datetime.now().strftime("%m-%d")
-                lead_mm_dd = lead.purchase_date[-5:] # Assumes YYYY-MM-DD
-                if lead_mm_dd == today_mm_dd:
-                    await assistant.send_telegram_message(chat_id, f"🎉 Instant Match! The new lead {lead.name} has a property anniversary today. I've updated your briefing.")
-                    await assistant.send_daily_briefing(chat_id)
+                p_date = lead.purchase_date or ""
+                if len(p_date) >= 5:
+                    # Explicit string range to satisfy type checker
+                    lead_mm_dd = p_date[len(p_date)-5:len(p_date)]
+                    if lead_mm_dd == today_mm_dd:
+                        await assistant.send_telegram_message(chat_id, f"🎉 Instant Match! The manual lead {lead.name} has a property anniversary TODAY ({lead.property_address}). I've updated the briefing.")
+                        await assistant.send_daily_briefing(chat_id)
 
     except Exception as e:
         print(f"Full insert failed, using adaptive fallback: {e}")
