@@ -45,10 +45,13 @@ class AIAssistant:
                 phone = str(row.get('phone') or row.get('mobile') or "")
                 email = str(row.get('email') or "")
                 intent = str(row.get('intent') or "buyer")
+                budget = str(row.get('budget') or "")
+                property_address = str(row.get('property_address') or "")
+                purchase_date = str(row.get('purchase_date') or "")
                 notes = str(row.get('notes') or "")
                 
-                sql = "INSERT INTO leads (id, name, phone, email, intent, notes, source) VALUES (?, ?, ?, ?, ?, ?, ?)"
-                await self.db.execute(sql, (str(uuid4()), name, phone, email, intent, notes, "telegram_upload"))
+                sql = "INSERT INTO leads (id, name, phone, email, intent, budget, property_address, purchase_date, notes, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                await self.db.execute(sql, (str(uuid4()), name, phone, email, intent, budget, property_address, purchase_date, notes, "telegram_upload"))
                 imported_count += 1
 
             return f"✅ Successfully imported {imported_count} leads from '{file_name}'!"
@@ -256,7 +259,9 @@ class AIAssistant:
                             "phone": {"type": "string", "description": "Phone number"},
                             "email": {"type": "string", "description": "Email address"},
                             "intent": {"type": "string", "enum": ["buyer", "seller", "investor", "renter"], "description": "Client category"},
-                            "budget": {"type": "string", "description": "Budget range for the property purchase"}
+                            "budget": {"type": "string", "description": "Budget range for the property purchase"},
+                            "property_address": {"type": "string", "description": "Address of the home Karin previously sold them"},
+                            "purchase_date": {"type": "string", "description": "Date of their last purchase (YYYY-MM-DD)"}
                         },
                         "required": ["name"]
                     }
