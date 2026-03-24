@@ -22,6 +22,8 @@ async def migrate():
     """
     
     try:
+        print("Executing migration...")
+        await client.execute(table_sql)
         print("SUCCESS: Table 'chat_history' created successfully.")
     except Exception as e:
         print(f"ERROR: Migration failed: {e}")

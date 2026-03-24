@@ -253,7 +253,8 @@ class AIAssistant:
                             "name": {"type": "string", "description": "Full name of the lead"},
                             "phone": {"type": "string", "description": "Phone number"},
                             "email": {"type": "string", "description": "Email address"},
-                            "intent": {"type": "string", "enum": ["buyer", "seller", "investor", "renter"], "description": "Client category"}
+                            "intent": {"type": "string", "enum": ["buyer", "seller", "investor", "renter"], "description": "Client category"},
+                            "budget": {"type": "string", "description": "Budget range for the property purchase"}
                         },
                         "required": ["name"]
                     }
@@ -288,12 +289,29 @@ class AIAssistant:
                         "required": ["name"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_record",
+                    "description": "Deletes a lead from the CRM database. USE SEARCH FIRST to find their ID or exact name.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Exact name of the person to delete"}
+                        },
+                        "required": ["name"]
+                    }
+                }
             }
         ]
 
         context = await self.get_system_context()
         
-        # Call Groq
+        # 1. Save USER message to history
+        await self.db.execute("INSERT INTO chat_history (user_id, role, content) VALUES (?, 'user', ?)", (agent_id, content))
+
+        # 2. Call Groq
         response = await self.groq.get_response(agent_id, content, context=context, tools=tools)
 
         # Check if Groq wants to call a tool
@@ -317,9 +335,9 @@ class AIAssistant:
                     await self.log_interaction(agent_id, "sms", "outbound", args['message'])
 
                 elif func_name == "add_lead":
-                    sql = "INSERT INTO leads (id, name, phone, email, intent, source) VALUES (?, ?, ?, ?, ?, ?)"
+                    sql = "INSERT INTO leads (id, name, phone, email, intent, budget, source) VALUES (?, ?, ?, ?, ?, ?, ?)"
                     lid = str(uuid4())
-                    await self.db.execute(sql, (lid, args['name'], args.get('phone', ''), args.get('email', ''), args.get('intent', 'buyer'), channel))
+                    await self.db.execute(sql, (lid, args['name'], args.get('phone', ''), args.get('email', ''), args.get('intent', 'buyer'), args.get('budget', ''), channel))
                     results.append(f"✅ Added lead: {args['name']}")
 
                 elif func_name == "scan_for_anniversaries":
@@ -348,10 +366,21 @@ class AIAssistant:
                     
                     results.append("\n".join(found) if found else f"No records found for '{args['name']}'.")
 
-            # Ask Groq to summarize the execution
-            summary_prompt = f"I executed: {', '.join(results)}. Please give a final conversational confirmation to Karin. IF IT WAS A GREETING ONLY, IGNORE THE SUMMARY AND JUST BE POLITE."
-            return await self.groq.get_response(agent_id, summary_prompt, context=context)
+                elif func_name == "delete_record":
+                    search_term = f"{args['name']}"
+                    await self.db.execute("DELETE FROM leads WHERE name = ?", (search_term,))
+                    results.append(f"✅ Executed: Deleted lead record for {search_term} if it existed.")
 
+            # Ask Groq to summarize the execution
+            summary_prompt = f"Results: {', '.join(results)}. Give a final brief confirmation. DO NOT RE-GREET IF YOU ALREADY GREETED IN THE PREVIOUS MESSAGE. Be professional and helpful."
+            final_reply = await self.groq.get_response(agent_id, summary_prompt, context=context)
+            
+            # 3. Save ASSISTANT response to history
+            await self.db.execute("INSERT INTO chat_history (user_id, role, content) VALUES (?, 'assistant', ?)", (agent_id, final_reply))
+            return final_reply
+
+        # 4. Save ASSISTANT response to history (General Case)
+        await self.db.execute("INSERT INTO chat_history (user_id, role, content) VALUES (?, 'assistant', ?)", (agent_id, response))
         return response
 
     async def execute_anniversary_emails(self, agent_id: str, dry_run: bool = False):

@@ -16,18 +16,17 @@ class GroqService:
         if not self.client:
             return "❌ Groq brain error: GROQ_API_KEY is missing in HF Secrets!"
 
-        # 1. Fetch history from Turso
-        history_sql = "SELECT role, content FROM chat_history WHERE user_id = ? ORDER BY created_at ASC LIMIT 10"
+        # 1. Fetch history from Turso (Last 20 messages)
+        history_sql = "SELECT role, content FROM chat_history WHERE user_id = ? ORDER BY created_at ASC LIMIT 20"
         result = await self.db.execute(history_sql, (user_id,))
         
         system_content = """You are Karin's Real Estate System Controller. You are an expert assistant that manages her CRM.
 RULES:
-1. BE CONVERSATIONAL: Start with a warm greeting (e.g., "Hi Karin! How can I help you today?").
-2. DATA SEARCH PRIORITY: If Karin asks for details about a person, property, or specific record, ALWAYS use the `search_crm` tool first.
-3. INTERACTIVE DATA ENTRY: If Karin wants to add a lead, provide conversational help.
-4. ONLY EXECUTE when you have the required information.
-5. ONLY confirm actions you actually took using a tool.
-6. Your tone is professional and highly conversational. You are her right-hand assistant."""
+1. TONE: Be professional and highly conversational. You are her right-hand assistant. GREET ONLY AT THE START of a conversation. Do not keep saying "Hi Karin" or "Good morning" if she is continuing a thought.
+2. DATA SEARCH PRIORITY: If Karin asks to fetch details, delete a record, or send an email, ALWAYS use the `search_crm` tool first to find the real, live data in the database. DO NOT GUESS emails (like joseph.abraham@example.com). Use the data found by your search tool.
+3. INTERACTIVE DATA ENTRY: Help her add leads by asking for missing Details (if 0810 number is provided but no name, ask for name).
+4. ONLY EXECUTE tools when you have the specific record identity (ID or exact Name match from a search).
+5. ONLY confirm actions you accurately performed using a tool."""
 
         if context:
             system_content += f"\n\nCURRENT SYSTEM REAL-TIME DATA:\n{context}\n\nUse this data to make decisions. If the user asks for updates, refer to this."
@@ -60,16 +59,8 @@ RULES:
             
             ai_reply = response_message.content
             
-            # 3. Save to History
-            await self.save_message(user_id, "user", message)
-            await self.save_message(user_id, "assistant", ai_reply)
-            
             return ai_reply
 
         except Exception as e:
             print(f"Groq API Error: {e}")
             return f"I'm having trouble connecting to my brain (Groq) right now. Error: {str(e)}"
-
-    async def save_message(self, user_id: str, role: str, content: str):
-        sql = "INSERT INTO chat_history (user_id, role, content) VALUES (?, ?, ?)"
-        await self.db.execute(sql, (user_id, role, content))
