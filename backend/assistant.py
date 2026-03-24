@@ -19,6 +19,8 @@ class AIAssistant:
     def __init__(self, db: Client):
         self.db = db
         self.groq = GroqService(db)
+        self.sms = SmsService()
+        self.google = GoogleAuthService(db)
 
     async def handle_document(self, agent_id: str, file_content: bytes, file_name: str):
         """
@@ -303,6 +305,21 @@ class AIAssistant:
                         "required": ["name"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "trigger_campaign",
+                    "description": "Fires a multi-step communication campaign (Email + SMS) to a lead. USE SEARCH FIRST to find them.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the lead to target"},
+                            "type": {"type": "string", "enum": ["intro", "followup", "valuation"], "description": "Type of campaign to send"}
+                        },
+                        "required": ["name"]
+                    }
+                }
             }
         ]
 
@@ -370,6 +387,37 @@ class AIAssistant:
                     search_term = f"{args['name']}"
                     await self.db.execute("DELETE FROM leads WHERE name = ?", (search_term,))
                     results.append(f"✅ Executed: Deleted lead record for {search_term} if it existed.")
+
+                elif func_name == "trigger_campaign":
+                    name = args['name']
+                    # 1. Verification Search
+                    search_term = f"%{name}%"
+                    leads = await self.db.execute("SELECT name, email, phone, intent FROM leads WHERE name LIKE ?", (search_term,))
+                    if not leads.rows:
+                        results.append(f"❌ Failed: Could not find lead matching '{name}' to trigger campaign.")
+                    else:
+                        lead = leads.rows[0]
+                        l_name, l_email, l_phone, l_intent = lead[0], lead[1], lead[2], lead[3]
+                        
+                        camp_results = []
+                        # 2. Email Phase
+                        if l_email:
+                            subject = f"Quick question from Karin @ Cooper & Co regarding your property"
+                            body = f"Hi {l_name},\n\nI was just reviewing some local market data and noticed some interesting shifts for {l_intent}s. Would you be open to a quick chat this week?\n\nBest,\nKarin's Assistant"
+                            # Personalize with AI if needed
+                            await self.google.send_email(l_email, subject, body)
+                            camp_results.append("Phase 1: Email Sent")
+                        
+                        # 3. SMS Phase
+                        if l_phone:
+                            sms_body = f"Hi {l_name}, just sent you an email regarding the {l_intent} market update. Talk soon! - Karin's AI"
+                            try:
+                                await self.sms.send_sms(l_phone, sms_body)
+                                camp_results.append("Phase 2: SMS Sent")
+                            except:
+                                camp_results.append("Phase 2: SMS (Twilio not configured)")
+
+                        results.append(f"🚀 Campaign Triggered for {l_name}: {', '.join(camp_results)}")
 
             # Ask Groq to summarize the execution
             summary_prompt = f"Results: {', '.join(results)}. Give a final brief confirmation. DO NOT RE-GREET IF YOU ALREADY GREETED IN THE PREVIOUS MESSAGE. Be professional and helpful."
