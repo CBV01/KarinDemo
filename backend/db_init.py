@@ -120,6 +120,13 @@ def init_db():
             scopes TEXT,
             expiry TIMESTAMP
         );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
     ]
     

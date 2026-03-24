@@ -46,7 +46,11 @@ class ClientCreate(BaseModel):
 class PropertyCreate(BaseModel):
     client_id: str
     address: str
-    purchase_date: str # YYYY-MM-DD
+    purchase_date: str
+
+class SettingsUpdate(BaseModel):
+    key: str
+    value: str # YYYY-MM-DD
 
 class LeadCreate(BaseModel):
     name: str
@@ -492,6 +496,23 @@ async def debug_health():
         "environment_check": status,
         "tip": "If anything says MISSING, your AI will not work. Add it to Hugging Face Settings -> Secrets."
     }
+
+# --- Settings Endpoints ---
+
+@app.get("/settings")
+async def get_settings(db: Client = Depends(get_db)):
+    """ Retrieve all dynamic settings (like API keys). """
+    result = await db.execute("SELECT key, value FROM settings")
+    return {row[0]: row[1] for row in result.rows}
+
+@app.post("/settings")
+async def update_settings(req: SettingsUpdate, db: Client = Depends(get_db)):
+    """ Update a specific dynamic setting. """
+    try:
+        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (req.key, req.value))
+        return {"status": "success", "message": f"Setting '{req.key}' updated successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn # type: ignore

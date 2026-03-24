@@ -62,6 +62,7 @@ const App = () => {
    const [interactions, setInteractions] = useState<any[]>([]);
    const [briefingMsg, setBriefingMsg] = useState('Syncing command pulse...');
    const [googleConnected, setGoogleConnected] = useState(false);
+   const [groqApiKey, setGroqApiKey] = useState('');
    const [loading, setLoading] = useState(true);
    const [toast, setToast] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
    const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -117,13 +118,14 @@ const App = () => {
    const fetchData = async () => {
       setLoading(true);
       try {
-         const [briefRes, annivRes, leadsRes, clientsRes, intRes, googleRes] = await Promise.all([
+         const [briefRes, annivRes, leadsRes, clientsRes, intRes, googleRes, settingsRes] = await Promise.all([
             api.get('/assistant/morning-briefing'),
             api.get('/anniversaries'),
             api.get('/leads'),
             api.get('/clients'),
             api.get('/interactions'),
-            api.get('/auth/status')
+            api.get('/auth/status'),
+            api.get('/settings')
          ]);
          setBriefingMsg(briefRes.data.content);
          setAnniversaries(annivRes.data);
@@ -131,6 +133,7 @@ const App = () => {
          setClients(clientsRes.data);
          setInteractions(intRes.data);
          setGoogleConnected(googleRes.data.connected);
+         if (settingsRes.data.groq_api_key) setGroqApiKey(settingsRes.data.groq_api_key);
       } catch (err) {
          console.error("Error fetching data:", err);
       } finally {
@@ -147,6 +150,15 @@ const App = () => {
          showToast('Scan complete. Notification sent to Telegram.');
       } catch (err) {
          showToast('Scan failed. Check system connection.', 'info');
+      }
+   };
+
+   const handleSaveSettings = async () => {
+      try {
+         await api.post('/settings', { key: 'groq_api_key', value: groqApiKey });
+         showToast('Groq AI Brain connected and active! ✅');
+      } catch (err) {
+         showToast('Update failed. Check backend connection.', 'info');
       }
    };
 
@@ -948,7 +960,39 @@ const App = () => {
             <div className="premium-card p-8 space-y-8">
                <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                     <h4 className="text-sm font-bold text-slate-800">Vapi.ai Voice Handshake</h4>
+                     <h4 className="text-sm font-bold text-slate-800 tracking-tight">Groq AI Brain Sync</h4>
+                     <p className="text-xs text-slate-400">Manage the orchestrator of your automated communication. Switching this instantly updates the entire AI brain.</p>
+                  </div>
+                  <div className={`px-3 py-1 ${groqApiKey ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-rose-50 text-rose-600 border-rose-100'} text-[10px] font-bold rounded border flex items-center gap-2 tracking-widest uppercase`}>
+                     {groqApiKey ? 'Brain Connected' : 'Brain Offline'}
+                  </div>
+               </div>
+               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-end">
+                  <div className="lg:col-span-3 space-y-2">
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Groq API Key (gsk_...)</label>
+                     <div className="relative group">
+                        <input 
+                           type="password" 
+                           placeholder="Paste your new Groq API key here..."
+                           value={groqApiKey} 
+                           onChange={(e) => setGroqApiKey(e.target.value)} 
+                           className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 px-5 text-sm font-medium text-slate-600 outline-none focus:bg-white focus:border-indigo-300 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-300" 
+                        />
+                        <div className="absolute right-4 top-3.5 text-slate-200 group-hover:text-indigo-200 transition-colors"><Zap size={18} /></div>
+                     </div>
+                  </div>
+                  <button 
+                     onClick={handleSaveSettings}
+                     className="bg-slate-900 hover:bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-widest h-[48px] px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                     <Link size={14} /> Connect Brain
+                  </button>
+               </div>
+            </div>
+
+            <div className="premium-card p-8 space-y-8">
+               <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                     <h4 className="text-sm font-bold text-slate-800 tracking-tight">Vapi.ai Voice Handshake</h4>
                      <p className="text-xs text-slate-400">Configure your ultra-low latency API keys for AI Phone Calls.</p>
                   </div>
                   <div className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded border border-emerald-100 flex items-center gap-2 tracking-widest">CONNECTED</div>
@@ -956,18 +1000,18 @@ const App = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Vapi Public Key</label>
-                     <input type="password" value="************************" readOnly className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-xs font-bold text-slate-400 outline-none" />
+                     <input type="password" value="************************" readOnly className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-xs font-bold text-slate-300 outline-none" />
                   </div>
                   <div className="space-y-2">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">WhatsApp Token</label>
-                     <input type="password" value="************************" readOnly className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-xs font-bold text-slate-400 outline-none" />
+                     <input type="password" value="************************" readOnly className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-xs font-bold text-slate-300 outline-none" />
                   </div>
                </div>
             </div>
 
             <div className="premium-card p-8 space-y-6">
                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-slate-800">Communication Timeline Protocol</h4>
+                  <h4 className="text-sm font-bold text-slate-800 tracking-tight">Communication Timeline Protocol</h4>
                   <p className="text-xs text-slate-400">Define the delays between Email, SMS, and AI Voice sequences.</p>
                </div>
                <div className="space-y-6">
@@ -976,7 +1020,7 @@ const App = () => {
                      { label: 'Phase 2 Delay (SMS ➔ AI Call)', val: '2 Hours' },
                      { label: 'Outbound Campaign Delay', val: '24 Hours' },
                   ].map((item, i) => (
-                     <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100/50">
+                     <div key={i} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100/30">
                         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{item.label}</span>
                         <div className="flex items-center gap-4 text-sm font-bold text-indigo-600">
                            {item.val}
@@ -988,9 +1032,9 @@ const App = () => {
             </div>
          </div>
 
-         <div className="flex justify-end gap-3 pr-2">
-            <button className="px-8 py-3 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl hover:bg-slate-200 transition">Factory Reset</button>
-            <button className="px-10 py-3 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-100 hover:bg-slate-900 transition flex items-center gap-2"><Send size={14} /> Save Global Sync</button>
+         <div className="flex justify-end gap-3 pr-2 opacity-50 pointer-events-none">
+            <button className="px-8 py-3 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl">Advanced Reset</button>
+            <button className="px-10 py-3 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-2"><Send size={14} /> Save Global Sync</button>
          </div>
       </div>
    );

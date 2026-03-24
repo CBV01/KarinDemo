@@ -13,8 +13,17 @@ class GroqService:
             self.client = None
 
     async def get_response(self, user_id: str, message: str, context: str = "", tools: Optional[List[Dict]] = None) -> str:
-        if not self.client:
-            return "❌ Groq brain error: GROQ_API_KEY is missing in HF Secrets!"
+        # Check for dynamic API key in settings
+        settings_res = await self.db.execute("SELECT value FROM settings WHERE key = 'groq_api_key'")
+        current_key = settings_res.rows[0][0] if settings_res.rows else self.api_key
+
+        if not current_key:
+            return "❌ Groq brain error: GROQ_API_KEY is missing! Update it in Settings."
+
+        # Re-initialize client if key is different from original env key
+        dynamic_client = Groq(api_key=current_key) if current_key else self.client
+        if not dynamic_client:
+            return "❌ Groq brain failure: Missing API client."
 
         # 1. Fetch history from Turso (Last 20 messages)
         history_sql = "SELECT role, content FROM chat_history WHERE user_id = ? ORDER BY created_at ASC LIMIT 20"
@@ -40,7 +49,7 @@ RULES:
 
         try:
             # 2. Call Groq API with Tool Support
-            completion = self.client.chat.completions.create(
+            completion = dynamic_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages,
                 tools=tools,
