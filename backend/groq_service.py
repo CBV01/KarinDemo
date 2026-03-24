@@ -37,8 +37,9 @@ RULES:
 4. IDENTITY LOCK: David (the user) is the AGENT. He is NOT a lead.
 5. CAMPAIGN COMMAND (PREVIEW FIRST): Always use `trigger_campaign` with `preview=True` for approvals.
 6. FUTURE VISION: If David asks about 'upcoming' or 'future' anniversaries, use the `scan_for_anniversaries` tool.
-7. TOOL SYNTAX: Always use valid JSON for tool call arguments. 
-8. ONLY confirm actions once a tool returns success."""
+7. RECORD SALE (NEW): If David says a lead has bought or a deal is closed, use the `record_sale` tool immediately. This promotes them to the Client Portfolio and SYNCs the anniversary to Google Calendar.
+8. TOOL SYNTAX: Always use valid JSON for tool call arguments. 
+9. ONLY confirm actions once a tool returns success."""
 
         if context:
             system_content += f"\n\nCURRENT SYSTEM REAL-TIME DATA:\n{context}\n\nUse this data to make decisions. If the user asks for updates, refer to this."

@@ -325,6 +325,22 @@ class AIAssistant:
             {
                 "type": "function",
                 "function": {
+                    "name": "record_sale",
+                    "description": "Promotes a lead to a Client, records their property purchase, and SYNCs the anniversary to Google Calendar.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the lead who closed"},
+                            "address": {"type": "string", "description": "Purchased property address"},
+                            "purchase_date": {"type": "string", "description": "Purchase date (YYYY-MM-DD)"}
+                        },
+                        "required": ["name", "address", "purchase_date"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "check_communications",
                     "description": "Scans for recent replies from leads in Gmail/SMS logs. Fulfills 'fetch responses' capability.",
                     "parameters": {"type": "object", "properties": {}}
@@ -431,6 +447,27 @@ class AIAssistant:
                         results.append("📭 No new replies found in the last 7 days.")
                     else:
                         results.append("📬 New Communications Found:\n" + "\n".join(found_replies))
+
+                elif func_name == "record_sale":
+                    name = args['name']
+                    addr = args['address']
+                    p_date = args['purchase_date']
+
+                    # 1. Promote to Clients
+                    client_sql = "INSERT INTO clients (full_name, status) VALUES (?, 'Active')"
+                    client_res = await self.db.execute(client_sql, (name,))
+                    client_id = client_res.last_insert_rowid
+                    
+                    # 2. Record Property
+                    prop_sql = "INSERT INTO properties (client_id, address, purchase_date) VALUES (?, ?, ?)"
+                    await self.db.execute(prop_sql, (client_id, addr, p_date))
+                    
+                    # 3. Google Calendar Sync
+                    google = GoogleAuthService(self.db)
+                    synced = await google.create_anniversary_event(name, addr, p_date)
+                    
+                    sync_msg = "✅ Also synced to Google Calendar!" if synced else "⚠️ Deal recorded, but Google Calendar sync failed (Auth issue?)."
+                    results.append(f"🏠 CONGRATS! {name} has been promoted to Client Portfolio at {addr}. {sync_msg}")
 
                 elif func_name == "trigger_campaign":
                     name = args['name']
