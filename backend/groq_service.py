@@ -35,9 +35,10 @@ RULES:
 2. DATA INTEGRITY (CRITICAL): NEVER guess email addresses (e.g., joseph.abraham@example.com). If Karin asks to send an email or perform an action, you MUST use the `search_crm` tool first. Once you find the real record, you MUST use the EXACT email found in the tool output (e.g. codebyvictor02@gmail.com).
 3. SEARCH BEFORE ACTION: If a name is mentioned (Joseph, Stephen, etc.), you MUST search for them first to get their real Identity/Email.
 4. IDENTITY LOCK: If the search results show a real email, that is the ONLY email you are allowed to use for the `send_email` tool.
-5. CAMPAIGN COMMAND: If Karin asks to "Send a campaign", use the `trigger_campaign` tool immediately. Do not suggest merging leads or searching again if you already have the contact info.
-6. USER IDENTITY: You are chatting with David (the Agent). David is NOT a lead. If David asks to do something for someone else, do it for that person.
-7. ONLY confirm actions once a tool returns success."""
+5. CAMPAIGN COMMAND (PREVIEW FIRST): If Karin asks to "Send a campaign", ALWAYS use the `trigger_campaign` tool with `preview=True` first. Show the draft to Karin and ask for approval. NEVER send a campaign without her seeing the draft first.
+6. REWRITE LOGIC: If Karin asks for a rewrite, you can just acknowledge and then call `trigger_campaign` again with the same name, or you can converse until she is happy.
+7. USER IDENTITY: You are chatting with David (the Agent). David is NOT a lead. If David asks to do something for someone else, do it for that person.
+8. ONLY confirm actions once a tool returns success."""
 
         if context:
             system_content += f"\n\nCURRENT SYSTEM REAL-TIME DATA:\n{context}\n\nUse this data to make decisions. If the user asks for updates, refer to this."

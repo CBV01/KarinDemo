@@ -315,7 +315,8 @@ class AIAssistant:
                         "type": "object",
                         "properties": {
                             "name": {"type": "string", "description": "Name of the lead to target"},
-                            "type": {"type": "string", "enum": ["intro", "followup", "valuation"], "description": "Type of campaign to send"}
+                            "type": {"type": "string", "enum": ["intro", "followup", "valuation"], "description": "Type of campaign to send"},
+                            "preview": {"type": "boolean", "description": "If true, only shows the draft. Default is true."}
                         },
                         "required": ["name"]
                     }
@@ -390,6 +391,7 @@ class AIAssistant:
 
                 elif func_name == "trigger_campaign":
                     name = args['name']
+                    preview = args.get('preview', True)
                     # 1. Verification Search
                     search_term = f"%{name}%"
                     leads = await self.db.execute("SELECT name, email, phone, intent FROM leads WHERE name LIKE ?", (search_term,))
@@ -399,25 +401,29 @@ class AIAssistant:
                         lead = leads.rows[0]
                         l_name, l_email, l_phone, l_intent = lead[0], lead[1], lead[2], lead[3]
                         
-                        camp_results = []
-                        # 2. Email Phase
-                        if l_email:
-                            subject = f"Quick question from Karin @ Cooper & Co regarding your property"
-                            body = f"Hi {l_name},\n\nI was just reviewing some local market data and noticed some interesting shifts for {l_intent}s. Would you be open to a quick chat this week?\n\nBest,\nKarin's Assistant"
-                            # Personalize with AI if needed
-                            await self.google.send_email(l_email, subject, body)
-                            camp_results.append("Phase 1: Email Sent")
-                        
-                        # 3. SMS Phase
-                        if l_phone:
-                            sms_body = f"Hi {l_name}, just sent you an email regarding the {l_intent} market update. Talk soon! - Karin's AI"
-                            try:
-                                await self.sms.send_sms(l_phone, sms_body)
-                                camp_results.append("Phase 2: SMS Sent")
-                            except:
-                                camp_results.append("Phase 2: SMS (Twilio not configured)")
+                        # Generate Drafter Content
+                        subject = f"Quick question from Karin @ Cooper & Co regarding your property"
+                        body = f"Hi {l_name},\n\nI was just reviewing some local market data and noticed some interesting shifts for {l_intent}s. Would you be open to a quick chat this week?\n\nBest,\nKarin's Assistant"
+                        sms_body = f"Hi {l_name}, just sent you an email regarding the {l_intent} market update. Talk soon! - Karin's AI"
 
-                        results.append(f"🚀 Campaign Triggered for {l_name}: {', '.join(camp_results)}")
+                        if preview:
+                            results.append(f"📝 DRAFT CAMPAIGN FOR {l_name}:\n\n📧 EMAIL:\nSubject: {subject}\nBody: {body}\n\n📱 SMS:\n{sms_body}\n\nShall I send this or would you like a rewrite?")
+                        else:
+                            # 2. Email Phase
+                            camp_results = []
+                            if l_email:
+                                await self.google.send_email(l_email, subject, body)
+                                camp_results.append("Phase 1: Email Sent")
+                            
+                            # 3. SMS Phase
+                            if l_phone:
+                                try:
+                                    await self.sms.send_sms(l_phone, sms_body)
+                                    camp_results.append("Phase 2: SMS Sent")
+                                except:
+                                    camp_results.append("Phase 2: SMS (Twilio not configured)")
+
+                            results.append(f"🚀 Campaign SENT to {l_name}: {', '.join(camp_results)}")
 
             # Ask Groq to summarize the execution
             summary_prompt = f"Results: {', '.join(results)}. Give a final brief confirmation. DO NOT RE-GREET IF YOU ALREADY GREETED IN THE PREVIOUS MESSAGE. Be professional and helpful."
