@@ -3,7 +3,7 @@ import io
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import List, Optional, cast
 from libsql_client import Client # type: ignore
@@ -321,6 +321,14 @@ class AIAssistant:
                         "required": ["name"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "check_communications",
+                    "description": "Scans for recent replies from leads in Gmail/SMS logs. Fulfills 'fetch responses' capability.",
+                    "parameters": {"type": "object", "properties": {}}
+                }
             }
         ]
 
@@ -338,7 +346,20 @@ class AIAssistant:
             results: List[str] = []
             for tool_call in tool_calls:
                 func_name = tool_call.function.name
-                args = json.loads(tool_call.function.arguments)
+                # Robust Parsing for potential LLM malformed JSON
+                args_str = tool_call.function.arguments
+                # Fix common Llama tag wrap issues
+                args_str = args_str.replace('<function=', '').replace('</function>', '').replace('/>', '')
+                
+                try:
+                    args = json.loads(args_str)
+                except json.JSONDecodeError:
+                    results.append(f"❌ System error: LLM generated malformed command for {func_name}.")
+                    continue
+                
+                # Fix Llama's string-bools (e.g., "true" instead of True)
+                if 'preview' in args and isinstance(args['preview'], str):
+                    args['preview'] = args['preview'].lower() == 'true'
                 
                 if func_name == "send_email":
                     google = GoogleAuthService(self.db)
@@ -359,12 +380,9 @@ class AIAssistant:
                     results.append(f"✅ Added lead: {args['name']}")
 
                 elif func_name == "scan_for_anniversaries":
-                    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-                    if chat_id:
-                        await self.send_daily_briefing(chat_id)
-                        results.append("✅ Manual anniversary scan triggered and sent to Telegram.")
-                    else:
-                        results.append("❌ Could not trigger scan: TELEGRAM_CHAT_ID missing.")
+                    scan_days = args.get('scan_days', 7)
+                    res_msg = await self.scan_for_anniversaries(agent_id, scan_days=scan_days)
+                    results.append(res_msg)
 
                 elif func_name == "fetch_database_summary":
                     client_count = (await self.db.execute("SELECT COUNT(*) FROM clients")).rows[0][0]
@@ -388,6 +406,31 @@ class AIAssistant:
                     search_term = f"{args['name']}"
                     await self.db.execute("DELETE FROM leads WHERE name = ?", (search_term,))
                     results.append(f"✅ Executed: Deleted lead record for {search_term} if it existed.")
+
+                elif func_name == "check_communications":
+                    # 1. Fetch recent outbound threads from logs
+                    log_sql = "SELECT metadata FROM interaction_logs WHERE type = 'email' AND direction = 'outbound' AND created_at >= date('now', '-7 days')"
+                    log_res = await self.db.execute(log_sql)
+                    
+                    found_replies = []
+                    google = GoogleAuthService(self.db)
+                    
+                    processed_threads = set()
+                    for row in log_res.rows:
+                        try:
+                            meta = json.loads(row[0])
+                            tid = meta.get('thread_id')
+                            if tid and tid not in processed_threads:
+                                snippet = await google.get_email_updates(tid)
+                                if snippet:
+                                    found_replies.append(f"📩 Reply from {meta.get('recipient')}: '{snippet}' (Thread: {tid})")
+                                processed_threads.add(tid)
+                        except: continue
+                    
+                    if not found_replies:
+                        results.append("📭 No new replies found in the last 7 days.")
+                    else:
+                        results.append("📬 New Communications Found:\n" + "\n".join(found_replies))
 
                 elif func_name == "trigger_campaign":
                     name = args['name']
@@ -436,6 +479,35 @@ class AIAssistant:
         # 4. Save ASSISTANT response to history (General Case)
         await self.db.execute("INSERT INTO chat_history (user_id, role, content) VALUES (?, 'assistant', ?)", (agent_id, response))
         return response
+
+    async def scan_for_anniversaries(self, agent_id: str, scan_days: int = 7):
+        """
+        Scans for property anniversaries within the next N days (default 7).
+        """
+        try:
+            results = []
+            for i in range(scan_days):
+                target_date = (datetime.now() + timedelta(days=i)).strftime("%m-%d")
+                sql = """
+                    SELECT c.full_name, c.email, p.address 
+                    FROM properties p 
+                    JOIN clients c ON p.client_id = c.id 
+                    WHERE strftime('%m-%d', p.purchase_date) = ?
+                """
+                res = await self.db.execute(sql, (target_date,))
+                rows = [dict(zip(res.columns, row)) for row in res.rows]
+                
+                if rows:
+                    date_str = (datetime.now() + timedelta(days=i)).strftime("%B %d")
+                    results.append(f"📅 {date_str}: {', '.join([r['full_name'] for r in rows])}")
+            
+            if not results:
+                return "No anniversaries found for the next 7 days."
+            
+            return "Upcoming Anniversaries:\n" + "\n".join(results)
+        except Exception as e:
+            logger.error(f"Error scanning anniversaries: {e}")
+            return f"❌ Failed to scan anniversaries: {str(e)}."
 
     async def execute_anniversary_emails(self, agent_id: str, dry_run: bool = False):
         """
