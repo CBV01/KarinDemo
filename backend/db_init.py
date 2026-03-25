@@ -127,6 +127,16 @@ def init_db():
             value TEXT NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS appraisals (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            address TEXT NOT NULL,
+            appointment_time TEXT NOT NULL,
+            status TEXT DEFAULT 'Scheduled',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
     ]
     

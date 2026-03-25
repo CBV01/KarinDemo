@@ -222,7 +222,7 @@ class AIAssistant:
                 "type": "function",
                 "function": {
                     "name": "send_email",
-                    "description": "Sends an email to a client via Gmail.",
+                    "description": "Sends an email to a client via Gmail. NEVER INVENT AN EMAIL. Use search_crm first to find the correct email address for the lead.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -352,6 +352,14 @@ class AIAssistant:
                     "description": "Scans for recent replies from leads in Gmail/SMS logs. Fulfills 'fetch responses' capability.",
                     "parameters": {"type": "object", "properties": {}}
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "prepare_anniversary_drafts",
+                    "description": "Generates personalized email drafts for all property anniversaries happening today. Use this when the user says 'prepare drafts'.",
+                    "parameters": {"type": "object", "properties": {}}
+                }
             }
         ]
 
@@ -455,6 +463,10 @@ class AIAssistant:
                     else:
                         results.append("📬 New Communications Found:\n" + "\n".join(found_replies))
 
+                elif func_name == "prepare_anniversary_drafts":
+                    draft_msg = await self.execute_anniversary_emails(agent_id, dry_run=True)
+                    results.append(draft_msg)
+
                 elif func_name == "record_sale":
                     name = args['name']
                     addr = args['address']
@@ -485,10 +497,16 @@ class AIAssistant:
                     # 1. Verification Search
                     search_term = f"%{name}%"
                     leads = await self.db.execute("SELECT name, email, phone, intent FROM leads WHERE name LIKE ?", (search_term,))
-                    if not leads.rows:
-                        results.append(f"❌ Failed: Could not find lead matching '{name}' to trigger campaign.")
+                    clients = await self.db.execute("SELECT full_name as name, email, phone, 'closed' as intent FROM clients WHERE full_name LIKE ?", (search_term,))
+                    
+                    target = None
+                    if leads.rows: target = leads.rows[0]
+                    elif clients.rows: target = clients.rows[0]
+
+                    if not target:
+                        results.append(f"❌ Failed: Could not find lead or client matching '{name}' to trigger campaign.")
                     else:
-                        lead = leads.rows[0]
+                        lead = target
                         l_name, l_email, l_phone, l_intent = lead[0], lead[1], lead[2], lead[3]
                         
                         # Generate Drafter Content
@@ -535,23 +553,34 @@ class AIAssistant:
             anniv_findings: List[str] = []
             for i in range(scan_days):
                 target_date = (datetime.now() + timedelta(days=i)).strftime("%m-%d")
-                sql = """
+                # 1. Check Clients
+                client_sql = """
                     SELECT c.full_name, c.email, p.address 
                     FROM properties p 
                     JOIN clients c ON p.client_id = c.id 
                     WHERE strftime('%m-%d', p.purchase_date) = ?
                 """
-                res = await self.db.execute(sql, (target_date,))
-                rows = [dict(zip(res.columns, row)) for row in res.rows]
+                # 2. Check Leads (Pipeline)
+                lead_sql = """
+                    SELECT name as full_name, email, property_address as address 
+                    FROM leads 
+                    WHERE strftime('%m-%d', purchase_date) = ? AND purchase_date IS NOT NULL
+                """
+                
+                res_c = await self.db.execute(client_sql, (target_date,))
+                res_l = await self.db.execute(lead_sql, (target_date,))
+                
+                rows = [dict(zip(res_c.columns, row)) for row in res_c.rows]
+                rows += [dict(zip(res_l.columns, row)) for row in res_l.rows]
                 
                 if rows:
                     date_str = (datetime.now() + timedelta(days=i)).strftime("%B %d")
-                    anniv_findings.append(f"📅 {date_str}: {', '.join([r['full_name'] for r in rows])}")
+                    anniv_findings.append(f"📅 {date_str}: {', '.join([r['full_name'] for r in rows])} ({', '.join([r['address'] for r in rows])})")
             
             if not anniv_findings:
-                return "No anniversaries found for the next 7 days."
+                return "No anniversaries identified for the upcoming 7-day window."
             
-            return "Upcoming Anniversaries:\n" + "\n".join(anniv_findings)
+            return "Identified Property Anniversaries:\n" + "\n".join(anniv_findings)
         except Exception as e:
             logger.error(f"Error scanning anniversaries: {e}")
             return f"❌ Failed to scan anniversaries: {str(e)}."
@@ -563,17 +592,28 @@ class AIAssistant:
         """
         try:
             today_mm_dd = datetime.now().strftime("%m-%d")
-            sql = """
+            # 1. Clients
+            client_sql = """
                 SELECT c.full_name, c.email, p.address 
                 FROM properties p 
                 JOIN clients c ON p.client_id = c.id 
                 WHERE strftime('%m-%d', p.purchase_date) = ?
             """
-            res = await self.db.execute(sql, (today_mm_dd,))
-            anniversaries = [dict(zip(res.columns, row)) for row in res.rows]
+            # 2. Leads (Pipeline)
+            lead_sql = """
+                SELECT name as full_name, email, property_address as address 
+                FROM leads 
+                WHERE strftime('%m-%d', purchase_date) = ? AND purchase_date IS NOT NULL
+            """
+            
+            res_c = await self.db.execute(client_sql, (today_mm_dd,))
+            res_l = await self.db.execute(lead_sql, (today_mm_dd,))
+            
+            anniversaries = [dict(zip(res_c.columns, row)) for row in res_c.rows]
+            anniversaries += [dict(zip(res_l.columns, row)) for row in res_l.rows]
             
             if not anniversaries:
-                return "No anniversaries found for today."
+                return "No active anniversaries identified for drafting today."
 
             google = GoogleAuthService(self.db)
             

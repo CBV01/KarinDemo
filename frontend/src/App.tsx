@@ -59,6 +59,7 @@ const App = () => {
    const [anniversaries, setAnniversaries] = useState<any[]>([]);
    const [leads, setLeads] = useState<any[]>([]);
    const [clients, setClients] = useState<any[]>([]);
+   const [appraisals, setAppraisals] = useState<any[]>([]);
    const [interactions, setInteractions] = useState<any[]>([]);
    const [briefingMsg, setBriefingMsg] = useState('Syncing command pulse...');
    const [googleConnected, setGoogleConnected] = useState(false);
@@ -118,19 +119,21 @@ const App = () => {
    const fetchData = async () => {
       setLoading(true);
       try {
-         const [briefRes, annivRes, leadsRes, clientsRes, intRes, googleRes, settingsRes] = await Promise.all([
+         const [briefRes, annivRes, leadsRes, clientsRes, intRes, googleRes, settingsRes, appRes] = await Promise.all([
             api.get('/assistant/morning-briefing'),
             api.get('/anniversaries'),
             api.get('/leads'),
             api.get('/clients'),
             api.get('/interactions'),
             api.get('/auth/status'),
-            api.get('/settings')
+            api.get('/settings'),
+            api.get('/appraisals')
          ]);
          setBriefingMsg(briefRes.data.content);
          setAnniversaries(annivRes.data);
          setLeads(leadsRes.data);
          setClients(clientsRes.data);
+         setAppraisals(appRes.data);
          setInteractions(intRes.data);
          setGoogleConnected(googleRes.data.connected);
          if (settingsRes.data.groq_api_key) setGroqApiKey(settingsRes.data.groq_api_key);
@@ -712,7 +715,11 @@ const App = () => {
       );
    };
 
-   const renderAppraisals = () => (
+   const renderAppraisals = () => {
+      const activeBookings = appraisals.length;
+      const awaitingSync = leads.filter(l => l.intent === 'seller').length;
+      
+      return (
       <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-12">
          <div className="flex items-center justify-between px-2">
             <div>
@@ -732,7 +739,7 @@ const App = () => {
                   <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Awaiting Sync</span>
                   <Clock size={16} className="text-slate-300" />
                </div>
-               <h3 className="text-2xl font-bold text-slate-800 leading-none mb-1">14</h3>
+               <h3 className="text-2xl font-bold text-slate-800 leading-none mb-1">{awaitingSync}</h3>
                <p className="text-xs text-slate-400 font-medium">Leads interested in appraisal via AI call</p>
             </div>
             <div className="premium-card p-6 border-l-4 border-l-emerald-500">
@@ -740,7 +747,7 @@ const App = () => {
                   <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Active Bookings</span>
                   <Calendar size={16} className="text-slate-300" />
                </div>
-               <h3 className="text-2xl font-bold text-slate-800 leading-none mb-1">08</h3>
+               <h3 className="text-2xl font-bold text-slate-800 leading-none mb-1">{activeBookings.toString().padStart(2, '0')}</h3>
                <p className="text-xs text-slate-400 font-medium">Physical meetings scheduled this week</p>
             </div>
             <div className="premium-card p-6 border-l-4 border-l-rose-500">
@@ -757,27 +764,22 @@ const App = () => {
             <table className="premium-table w-full text-left">
                <thead className="bg-slate-50/50"><tr className="text-[10px] text-slate-400 font-bold uppercase tracking-widest border-b border-slate-100"><th className="pl-8 py-4">Target Address</th><th>Property Owner</th><th>AI Qualification Status</th><th className="pr-8 text-right">Action</th></tr></thead>
                <tbody className="divide-y divide-slate-50">
-                  {anniversaries.length > 0 ? anniversaries.map((app, i) => (
+                  {appraisals.length > 0 ? appraisals.map((app, i) => (
                      <tr key={i} className="hover:bg-slate-50/50 transition">
-                        <td className="pl-8 py-5 font-bold text-slate-800 text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">{app.address}</td>
-                        <td className="text-sm font-semibold text-slate-600">{app.full_name}</td>
-                        <td><span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded flex items-center gap-2 w-max shadow-sm"><CheckCircle2 size={12} /> AI QUALIFIED</span></td>
-                        <td className="pr-8 text-right">
-                           <button
-                              onClick={() => setActiveModal('BOOK_APPRAISAL')}
-                              className="px-4 py-2 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-lg shadow-indigo-100 flex items-center gap-2 ml-auto">
-                              Book Meeting <ArrowRight size={12} />
-                           </button>
-                        </td>
+                        <td className="pl-8 py-5 font-bold text-slate-800 text-sm">{app.address}</td>
+                        <td className="text-sm font-semibold text-slate-600">{app.client_id === 'internal' ? 'Manual Sync' : app.client_id}</td>
+                        <td><span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded flex items-center gap-2 w-max shadow-sm"><CheckCircle2 size={12} /> {app.status || 'Scheduled'}</span></td>
+                        <td className="pr-8 text-right text-[11px] font-bold text-slate-400 uppercase">{app.appointment_time}</td>
                      </tr>
                   )) : (
-                     <tr><td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest">No active appraisal triggers found</td></tr>
+                     <tr><td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest">No active appraisal bookings found in database</td></tr>
                   )}
                </tbody>
             </table>
          </div>
       </div>
    );
+};
 
    const renderCampaigns = () => (
       <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500 pb-32 pt-8">

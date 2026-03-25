@@ -162,6 +162,21 @@ async def get_properties(db: Client = Depends(get_db)):
     result = await db.execute("SELECT * FROM properties")
     return [dict(zip(result.columns, row)) for row in result.rows]
 
+@app.get("/appraisals")
+async def get_appraisals(db: Client = Depends(get_db)):
+    result = await db.execute("SELECT * FROM appraisals ORDER BY created_at DESC")
+    return [dict(zip(result.columns, row)) for row in result.rows]
+
+@app.post("/appraisals/book")
+async def book_appraisal(data: AppraisalBook, db: Client = Depends(get_db)):
+    aid = str(uuid.uuid4())
+    try:
+        sql = "INSERT INTO appraisals (id, client_id, address, appointment_time) VALUES (?, ?, ?, ?)"
+        await db.execute(sql, (aid, data.client_id, data.address, data.appointment_time))
+        return {"id": aid, "message": "Appraisal scheduled successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- Anniversary Engine (Manual Trigger for Testing) ---
 
 @app.get("/anniversaries")
